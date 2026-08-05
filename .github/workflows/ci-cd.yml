@@ -1,4 +1,4 @@
-name: CI/CD Pipeline - Python Service
+name: CI/CD Pipeline - Fuel Ratio System
 
 on:
   push:
@@ -12,29 +12,39 @@ on:
       - master
 
 jobs:
-  test-and-lint:
-    name: Run Unit Tests & Linting
+  test-python-ai-service:
+    name: Run Python AI Service Tests & Linting
     runs-on: ubuntu-latest
 
-    # Menentukan working directory global untuk job ini
     defaults:
       run:
-        working-directory: python-service
+        working-directory: python-ai-service
 
     strategy:
       matrix:
-        python-version: ['3.10', '3.11']
+        python-version: ['3.11', '3.13']
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Detect dependency file
+        id: detect-dep
+        run: |
+          if [ -f python-ai-service/requirements.txt ]; then
+            echo "CACHE_DEP_PATH=python-ai-service/requirements.txt" >> $GITHUB_ENV
+          elif [ -f python-ai-service/pyproject.toml ]; then
+            echo "CACHE_DEP_PATH=python-ai-service/pyproject.toml" >> $GITHUB_ENV
+          else
+            echo "CACHE_DEP_PATH=" >> $GITHUB_ENV
+          fi
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
           cache: 'pip'
-          cache-dependency-path: 'python-service/requirements.txt'
+          cache-dependency-path: ${{ env.CACHE_DEP_PATH }}
 
       - name: Install dependencies
         run: |
@@ -42,16 +52,14 @@ jobs:
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           pip install pytest pytest-cov flake8
 
-      - name: Lint code with flake8 (Optional Quality Check)
+      - name: Lint code with flake8
         run: |
-          # Stop the build if there are Python syntax errors or undefined names
           flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-          # Exit-zero treats all errors as warnings.
           flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
       - name: Run Pytest with Coverage
         env:
-          PYTHONPATH: ${{ github.workspace }}/python-service
+          PYTHONPATH: ${{ github.workspace }}/python-ai-service
         run: |
           pytest --junitxml=test-results.xml --cov=. --cov-report=term-missing
 
@@ -60,11 +68,59 @@ jobs:
         if: always()
         with:
           name: pytest-results-${{ matrix.python-version }}
-          path: python-service/test-results.xml
+          path: python-ai-service/test-results.xml
+
+  test-laravel-portal:
+    name: Run Laravel Web Portal PHPUnit Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: kideco_fuel_ratio_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: secret_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    defaults:
+      run:
+        working-directory: laravel
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup PHP Environment
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, pdo_pgsql, bcmath, ctype, json, openssl
+
+      - name: Install Composer Dependencies
+        run: |
+          composer install --prefer-dist --no-progress
+
+      - name: Run PHPUnit Tests
+        env:
+          DB_CONNECTION: pgsql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 5432
+          DB_DATABASE: kideco_fuel_ratio_test
+          DB_USERNAME: postgres
+          DB_PASSWORD: secret_password
+        run: |
+          php artisan test
 
   build-and-push:
-    name: Build Docker Image (Optional Step)
-    needs: test-and-lint
+    name: Build Production Docker Image
+    needs: [test-python-ai-service, test-laravel-portal]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
@@ -75,10 +131,10 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build Docker image
+      - name: Build Python AI Service Docker Image
         uses: docker/build-push-action@v5
         with:
-          context: ./python-service
-          file: ./python-service/Dockerfile
-          push: false # Ubah ke true jika ingin push ke Docker Registry / GHCR
-          tags: python-service:latest
+          context: ./python-ai-service
+          file: ./python-ai-service/Dockerfile
+          push: false
+          tags: python-ai-service:latest
