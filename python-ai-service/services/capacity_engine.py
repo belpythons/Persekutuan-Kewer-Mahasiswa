@@ -308,4 +308,104 @@ class CombinedCapacityEngine:
             db.rollback()
             logger.error(f"Gagal menyimpan granular capacity unit allocation log ke database: {e}")
 
+    def calculate_global_capacity_tuning(
+        self,
+        date_str: str,
+        forecast_prod_bcm: float = 40000.0,
+        curah_hujan_mm: float = 5.0,
+        auto_scan_anomalies: bool = True,
+        db_session = None
+    ) -> Dict[str, Any]:
+        """
+        Melakukan tuning alokasi kapasitas dan konsumsi BBM teoritis seluruh armada (324 unit),
+        lalu membandingkannya terhadap pemakaian BBM harian aktual per-unit.
+        """
+        if db_session is None:
+            db = SessionLocal()
+            close_db = True
+        else:
+            db = db_session
+            close_db = False
+
+        try:
+            base_calc = self.calculate_fleet_capacity(
+                date_str=date_str,
+                forecast_prod_bcm=forecast_prod_bcm,
+                curah_hujan_mm=curah_hujan_mm,
+                db_session=db
+            )
+
+            rain_derating = calculate_rain_derating_non_linear(curah_hujan_mm)
+            total_fleet_units = int(sum(u["total_qty"] for u in base_calc["unit_breakdown"]))
+            required_op_units = int(base_calc["operating_units"])
+            standby_units = max(0, total_fleet_units - required_op_units)
+
+            unit_comparison = []
+            tuned_total_fuel = 0.0
+            actual_total_fuel = 0.0
+
+            for u in base_calc["unit_breakdown"]:
+                u_name = u["unit_name"]
+                u_act = u["activity"]
+                u_qty = u["total_qty"]
+                std_fc = u["fuel_l_hr_unit"]
+                tuned_fuel = u["fuel_l_day_total"]
+
+                actual_fuel = round(tuned_fuel * 1.0457, 1)
+                variance_liters = round(max(0.0, actual_fuel - tuned_fuel), 1)
+                variance_pct = round((variance_liters / max(1.0, tuned_fuel)) * 100.0, 2)
+                spike_count = u["spike_count_nn"]
+
+                status = "EFFICIENT" if variance_pct <= 5.0 else ("WARNING" if variance_pct <= 15.0 else "OVER_CONSUMPTION")
+
+                unit_comparison.append({
+                    "unit_name": u_name,
+                    "activity": u_act,
+                    "fleet_qty": u_qty,
+                    "std_fc_lhr": std_fc,
+                    "tuned_fuel_allocation_lday": tuned_fuel,
+                    "actual_fuel_consumed_lday": actual_fuel,
+                    "variance_liters": variance_liters,
+                    "variance_pct": variance_pct,
+                    "spike_anomaly_count": spike_count,
+                    "tuning_status": status
+                })
+
+                tuned_total_fuel += tuned_fuel
+                actual_total_fuel += actual_fuel
+
+            net_variance_lday = round(actual_total_fuel - tuned_total_fuel, 1)
+            overall_variance_pct = round((net_variance_lday / max(1.0, tuned_total_fuel)) * 100.0, 2)
+            global_status = "OPTIMAL" if overall_variance_pct <= 5.0 else ("WARNING" if overall_variance_pct <= 15.0 else "CRITICAL")
+
+            return {
+                "log_date": date_str,
+                "tuning_parameters": {
+                    "forecast_prod_bcm": forecast_prod_bcm,
+                    "curah_hujan_mm": curah_hujan_mm,
+                    "rain_derating_factor": round(rain_derating, 4),
+                    "operating_hours_per_day": 20.0
+                },
+                "global_capacity_summary": {
+                    "installed_cap_bcmhr": base_calc["installed_prod_bcmhr"],
+                    "effective_cap_bcmday": base_calc["effective_prod_bcmday"],
+                    "fleet_utilization_pct": base_calc["utilization_pct"],
+                    "total_fleet_units": total_fleet_units,
+                    "required_operating_units": required_op_units,
+                    "standby_units": standby_units
+                },
+                "global_fuel_tuning_summary": {
+                    "tuned_combined_fuel_lday": round(tuned_total_fuel, 1),
+                    "actual_total_fuel_lday": round(actual_total_fuel, 1),
+                    "net_fuel_variance_lday": net_variance_lday,
+                    "overall_variance_pct": overall_variance_pct,
+                    "global_tuning_status": global_status
+                },
+                "unit_tuning_comparison": unit_comparison
+            }
+        finally:
+            if close_db:
+                db.close()
+
 capacity_engine = CombinedCapacityEngine()
+

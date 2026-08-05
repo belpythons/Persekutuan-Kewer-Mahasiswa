@@ -45,6 +45,7 @@ const aiStatus = computed(() => {
   return aiResult.value.fallback ? 'fallback' : 'live'
 })
 
+let timer: any = null
 const runForecast = async () => {
   isLoading.value = true
   errorMsg.value = ''
@@ -66,6 +67,15 @@ const runForecast = async () => {
   }
 }
 
+const debouncedRunForecast = () => {
+  if (timer) clearTimeout(timer)
+  timer = setTimeout(runForecast, 300)
+}
+
+watch([rainfallMm, haulDistanceM, targetBcm], () => {
+  debouncedRunForecast()
+})
+
 const resetDefaults = () => {
   rainfallMm.value = 0
   tempMaxC.value = 32.0
@@ -74,6 +84,7 @@ const resetDefaults = () => {
   targetBcm.value = 250072
   aiResult.value = null
   errorMsg.value = ''
+  runForecast()
 }
 
 onMounted(() => {
@@ -82,7 +93,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <VCard>
+  <VCard class="d-flex flex-column h-100">
     <VCardItem>
       <template #prepend>
         <VAvatar
@@ -136,7 +147,7 @@ onMounted(() => {
       </template>
     </VCardItem>
 
-    <VCardText>
+    <VCardText class="flex-grow-1 d-flex flex-column justify-space-between">
       <VRow>
         <VCol
           cols="12"
@@ -193,83 +204,71 @@ onMounted(() => {
         </VCol>
       </VRow>
 
-      <!-- Run Forecast Button -->
-      <div class="d-flex justify-end mb-3">
-        <VBtn
-          color="primary"
-          prepend-icon="bx-brain"
-          :loading="isLoading"
-          @click="runForecast"
-        >
-          Run AI Forecast
-        </VBtn>
-      </div>
-
-      <!-- Error Alert -->
-      <VAlert
-        v-if="errorMsg"
-        type="warning"
-        variant="tonal"
-        density="compact"
-        class="mb-3"
-        closable
-        @click:close="errorMsg = ''"
+      <!-- RESULTS SHEET (AUTOMATIC RECALCULATION ON SLIDER CHANGE) -->
+      <VSheet
+        rounded="lg"
+        class="pa-4 border mt-4"
+        :class="`bg-${status.color}-lighten-5 border-${status.color}`"
       >
-        {{ errorMsg }} — Menampilkan hasil formula lokal
-      </VAlert>
+        <VRow align="center">
+          <VCol
+            cols="12"
+            sm="5"
+          >
+            <div class="text-caption text-medium-emphasis mb-1">
+              Predicted Fuel Ratio
+            </div>
+            <div class="d-flex align-baseline gap-2">
+              <span
+                class="text-h3 font-weight-bold"
+                :class="`text-${status.color}`"
+              >
+                {{ predictedFr.toFixed(4) }}
+              </span>
+              <span class="text-body-2 text-medium-emphasis">L/BCM</span>
+            </div>
+          </VCol>
 
-      <VCard
-        variant="tonal"
-        :color="status.color"
-        class="pa-4 mt-2"
-      >
-        <div class="d-flex align-center justify-space-between flex-wrap gap-4">
-          <div>
-            <span class="text-caption text-medium-emphasis">Predicted Fuel Ratio</span>
-            <h4
-              class="text-h4 font-weight-bold"
-              :class="`text-${status.color}`"
+          <VCol
+            cols="12"
+            sm="5"
+          >
+            <div class="text-caption text-medium-emphasis mb-1">
+              Predicted Fuel Requirement
+            </div>
+            <div class="d-flex align-baseline gap-2">
+              <span class="text-h4 font-weight-bold text-high-emphasis">
+                {{ predictedFuelL.toLocaleString('id-ID') }}
+              </span>
+              <span class="text-body-2 text-medium-emphasis">L/hari</span>
+            </div>
+          </VCol>
+
+          <VCol
+            cols="12"
+            sm="2"
+            class="text-right"
+          >
+            <VChip
+              :color="status.color"
+              class="font-weight-bold"
+              size="large"
             >
-              {{ predictedFr.toFixed(4) }} <span class="text-body-2">L/BCM</span>
-            </h4>
-          </div>
-
-          <div>
-            <span class="text-caption text-medium-emphasis">Predicted Fuel Requirement</span>
-            <h4 class="text-h4 font-weight-bold">
-              {{ predictedFuelL.toLocaleString('id-ID') }} <span class="text-body-2">L/hari</span>
-            </h4>
-          </div>
-
-          <VChip
-            :color="status.color"
-            variant="elevated"
-            size="large"
-            class="font-weight-bold"
-          >
-            <VIcon
-              start
-              :icon="status.icon"
-            />
-            {{ aiResult ? aiResult.status : status.label }}
-          </VChip>
-        </div>
-
-        <!-- AI Features Used Detail (shown after forecast) -->
-        <div
-          v-if="aiResult?.features_used"
-          class="mt-3 pt-3 border-t d-flex flex-wrap gap-3"
-        >
-          <VChip
-            v-for="(val, key) in aiResult.features_used"
-            :key="key"
-            size="small"
-            variant="outlined"
-          >
-            {{ key }}: {{ val }}
-          </VChip>
-        </div>
-      </VCard>
+              <VIcon
+                :icon="status.icon"
+                start
+              />
+              {{ status.label }}
+            </VChip>
+          </VCol>
+        </VRow>
+      </VSheet>
     </VCardText>
   </VCard>
 </template>
+
+<style scoped>
+.h-100 {
+  height: 100%;
+}
+</style>

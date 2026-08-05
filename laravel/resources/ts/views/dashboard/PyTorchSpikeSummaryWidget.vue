@@ -22,66 +22,57 @@ const anomalyRatio = computed(() => {
 </script>
 
 <template>
-  <VCard>
+  <VCard class="border d-flex flex-column h-100">
     <VCardItem>
       <template #prepend>
         <VAvatar
           color="error"
           variant="tonal"
-          size="48"
+          size="44"
           rounded
         >
           <VIcon
             icon="bx-pulse"
-            size="28"
+            size="24"
           />
         </VAvatar>
       </template>
-      <VCardTitle class="text-body-1 font-weight-medium">
+      <VCardTitle class="text-body-1 font-weight-bold">
         PyTorch Anomaly Detector
       </VCardTitle>
-      <VCardSubtitle>Neural Network Spike Scanner</VCardSubtitle>
+      <VCardSubtitle class="text-caption">Neural Network Spike Scanner</VCardSubtitle>
     </VCardItem>
 
-    <VCardText>
+    <VCardText class="flex-grow-1 d-flex flex-column justify-space-between">
       <div v-if="isLoading" class="d-flex justify-center my-4">
         <VProgressCircular indeterminate color="primary" />
       </div>
       <template v-else>
         <div class="d-flex align-center gap-4 mb-3">
           <div>
-            <div class="d-flex align-center gap-2 mb-1">
+            <span class="text-caption text-medium-emphasis">Spike Events Detected</span>
+            <div class="d-flex align-center gap-2">
               <h3 class="text-h3 font-weight-bold text-error">
                 {{ props.totalSpikes }}
               </h3>
               <div class="spike-pulse-dot" />
             </div>
-            <span class="text-body-2 text-medium-emphasis">Spike Events Detected</span>
           </div>
         </div>
 
-        <VDivider class="mb-3" />
+        <div>
+          <VDivider class="mb-3" />
 
-        <div class="d-flex justify-space-between text-body-2">
-          <div>
-            <VIcon
-              icon="bx-cog"
-              size="16"
-              class="me-1"
-            />
-            <span class="text-medium-emphasis">Anomalous Units:</span>
-            <strong class="ms-1 text-error">{{ props.anomalousUnitsCount }}</strong>
-          </div>
-          <div>
-            <span class="text-medium-emphasis">Anomaly Ratio:</span>
-            <VChip
-              color="error"
-              size="small"
-              variant="tonal"
-              class="ms-1"
-            >
-              {{ anomalyRatio }}% Fleet
-            </VChip>
+          <div class="d-flex justify-space-between text-caption flex-wrap gap-2">
+            <div>
+              <VIcon
+                icon="bx-cog"
+                size="16"
+                class="me-1 text-medium-emphasis"
+              />
+              <span class="text-medium-emphasis">Anomalous Units:</span>
+              <strong class="ms-1 text-error">{{ props.anomalousUnitsCount }}</strong>
+            </div>
           </div>
         </div>
       </template>
@@ -93,22 +84,15 @@ const anomalyRatio = computed(() => {
 .spike-pulse-dot {
   display: inline-block;
   background: rgb(var(--v-theme-error));
-  block-size: 12px;
+  block-size: 10px;
   border-radius: 50%;
-  inline-size: 12px;
+  inline-size: 10px;
   animation: pulse-anim 1.5s ease-in-out infinite;
 }
 
 @keyframes pulse-anim {
-  0%,
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-
-  50% {
-    opacity: 0.5;
-    transform: scale(1.4);
-  }
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.2); opacity: 1; }
+  100% { transform: scale(0.95); opacity: 0.8; }
 }
 </style>
