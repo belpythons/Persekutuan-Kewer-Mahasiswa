@@ -106,13 +106,16 @@ def load_unit_anomaly_logs(db_session: Session) -> pd.DataFrame:
         return pd.DataFrame(columns=['Date', 'Unit', 'Activity', 'FC_Actual', 'FC_Base', 'FC_Ratio', 'Unit_Fuel_L_Day', 'Unit_FR', 'NN_Anomaly_Spike', 'Rain_mm', 'Unit_FR_Ratio', 'Unit_Fuel_Ratio'])
         
     df = pd.DataFrame(rows, columns=result.keys())
+    df['FC_Ratio'] = df['FC_Ratio'].fillna(1.0)
     
-    def calc_norm_ratios(row):
-        fc_act = float(row['FC_Actual'])
-        fc_base = float(row['FC_Base']) if float(row.get('FC_Base', 0)) > 0 else fc_act
-        fc_ratio = fc_act / fc_base if fc_base > 0 else 1.0
-        return pd.Series([fc_ratio, fc_ratio, fc_ratio])
-        
-    df[['FC_Ratio', 'Unit_FR_Ratio', 'Unit_Fuel_Ratio']] = df.apply(calc_norm_ratios, axis=1)
+    # Hitung rata-rata baseline per unit untuk normalisasi rasio murni per unit
+    unit_bases = df.groupby('Unit').agg(
+        mean_fr=('Unit_FR', 'mean'),
+        mean_fuel=('Unit_Fuel_L_Day', 'mean')
+    ).reset_index()
+    
+    df = df.merge(unit_bases, on='Unit', how='left')
+    df['Unit_FR_Ratio'] = (df['Unit_FR'] / df['mean_fr'].replace(0, 1.0)).fillna(1.0)
+    df['Unit_Fuel_Ratio'] = (df['Unit_Fuel_L_Day'] / df['mean_fuel'].replace(0, 1.0)).fillna(1.0)
     
     return df

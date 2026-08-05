@@ -5,15 +5,14 @@ use App\Http\Controllers\Api\ForecastController;
 use App\Http\Controllers\Api\AnomalyController;
 use App\Http\Controllers\Api\CapacityController;
 use App\Http\Controllers\Api\HealthController;
-use App\Http\Controllers\Api\ChatbotController;
 
 /*
 |--------------------------------------------------------------------------
-| API Routes — AI Microservice Proxy & Gemini SSE Chatbot
+| API Routes — AI Microservice Proxy
 |--------------------------------------------------------------------------
 |
 | Proxy endpoints yang meneruskan request dari Vue frontend ke
-| python-ai-service serta endpoint Gemini SSE Streaming Chatbot. Prefix: /api/v1
+| python-ai-service. Prefix: /api/v1
 |
 */
 
@@ -26,9 +25,6 @@ Route::prefix('v1')->group(function () {
 
     // Combined Capacity Determination
     Route::post('/calculate-capacity', [CapacityController::class, 'calculate']);
-
-    // Gemini AI Chatbot SSE Stream
-    Route::post('/chatbot/stream', [ChatbotController::class, 'stream']);
 
     // AI Microservice Health & Readiness
     Route::get('/ai-health', [HealthController::class, 'health']);
