@@ -31,6 +31,9 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+*.log
+/storage/logs/*
+!/storage/logs/.gitignore
 
 # Caches & Linting
 .eslintcache

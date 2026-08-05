@@ -2,7 +2,6 @@
 import type { Component } from 'vue'
 import { PerfectScrollbar } from 'vue3-perfect-scrollbar'
 import { useDisplay } from 'vuetify'
-import logo from '@images/logo.svg?raw'
 
 interface Props {
   tag?: string | Component
@@ -59,14 +58,13 @@ const handleNavScroll = (evt: Event) => {
           to="/"
           class="app-logo app-title-wrapper"
         >
-          <div
-            class="d-flex"
-            v-html="logo"
-          />
-
-          <h1 class="leading-normal">
-            sneat
-          </h1>
+          <div class="d-flex align-center px-8">
+            <img
+              src="/favicon.ico"
+              alt="Kideco"
+              class="kideco-nav-logo"
+            />
+          </div>
         </RouterLink>
       </slot>
     </div>
@@ -94,13 +92,13 @@ const handleNavScroll = (evt: Event) => {
 .app-logo {
   display: flex;
   align-items: center;
-  column-gap: 0.75rem;
+  inline-size: 100%;
 
-  .app-logo-title {
-    font-size: 1.25rem;
-    font-weight: 500;
-    line-height: 1.75rem;
-    text-transform: uppercase;
+  .kideco-nav-logo {
+    inline-size: auto;
+    max-inline-size: 175px;
+    block-size: 38px;
+    object-fit: contain;
   }
 }
 </style>

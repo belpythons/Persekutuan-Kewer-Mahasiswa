@@ -1,7 +1,7 @@
 import type { ThemeDefinition } from 'vuetify'
 
-export const staticPrimaryColor = '#696CFF'
-export const staticPrimaryDarkenColor = '#5E61E6'
+export const staticPrimaryColor = '#E53935'
+export const staticPrimaryDarkenColor = '#C62828'
 
 export const themes: Record<string, ThemeDefinition> = {
   light: {
@@ -10,11 +10,11 @@ export const themes: Record<string, ThemeDefinition> = {
       'primary': staticPrimaryColor,
       'on-primary': '#fff',
       'primary-darken-1': staticPrimaryDarkenColor,
-      'primary-light': '#8789FF',
-      'secondary': '#8592A3',
+      'primary-light': '#FF6B6B',
+      'secondary': '#1E88E5',
       'on-secondary': '#fff',
-      'secondary-darken-1': '#788393',
-      'secondary-light': '#9DA8B5',
+      'secondary-darken-1': '#1565C0',
+      'secondary-light': '#64B5F6',
       'success': '#71DD37',
       'on-success': '#fff',
       'success-darken-1': '#66C732',
@@ -27,10 +27,10 @@ export const themes: Record<string, ThemeDefinition> = {
       'on-warning': '#fff',
       'warning-darken-1': '#E69A00',
       'warning-light': '#FFBC33',
-      'error': '#FF3E1D',
+      'error': '#D32F2F',
       'on-error': '#fff',
-      'error-darken-1': '#E6381A',
-      'error-light': '#FF654A',
+      'error-darken-1': '#B71C1C',
+      'error-light': '#EF5350',
       'background': '#f5f5f9',
       'on-background': '#22303E',
       'surface': '#fff',
@@ -91,11 +91,11 @@ export const themes: Record<string, ThemeDefinition> = {
       'primary': staticPrimaryColor,
       'on-primary': '#fff',
       'primary-darken-1': staticPrimaryDarkenColor,
-      'primary-light': '#8789FF',
-      'secondary': '#8592A3',
+      'primary-light': '#FF6B6B',
+      'secondary': '#3B82F6',
       'on-secondary': '#fff',
-      'secondary-darken-1': '#788393',
-      'secondary-light': '#9DA8B5',
+      'secondary-darken-1': '#2563EB',
+      'secondary-light': '#93C5FD',
       'success': '#71DD37',
       'on-success': '#fff',
       'success-darken-1': '#66C732',
@@ -108,10 +108,10 @@ export const themes: Record<string, ThemeDefinition> = {
       'on-warning': '#fff',
       'warning-darken-1': '#E69A00',
       'warning-light': '#FFBC33',
-      'error': '#FF3E1D',
+      'error': '#D32F2F',
       'on-error': '#fff',
-      'error-darken-1': '#E6381A',
-      'error-light': '#FF654A',
+      'error-darken-1': '#B71C1C',
+      'error-light': '#EF5350',
       'background': '#232333',
       'on-background': '#E6E6F1',
       'surface': '#2B2C40',

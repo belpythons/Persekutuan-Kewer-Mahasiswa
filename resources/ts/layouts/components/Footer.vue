@@ -29,7 +29,7 @@
         target="noopener noreferrer"
       >More Themes</a>
       <a
-        href="https://demos.themeselection.com/sneat-vuetify-vuejs-admin-template/documentation/guide/laravel-integration/folder-structure.html"
+        href="https://demos.themeselection.com/Kideco-vuetify-vuejs-admin-template/documentation/guide/laravel-integration/folder-structure.html"
         target="noopener noreferrer"
       >Documentation</a>
       <a

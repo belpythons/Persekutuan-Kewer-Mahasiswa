@@ -23,7 +23,7 @@ import VerticalNavLink from '@layouts/components/VerticalNavLink.vue'
     <VerticalNavLink
       :item="{
         title: 'CRM',
-        href: 'https://demos.themeselection.com/sneat-vuetify-vuejs-laravel-admin-template/demo-1/dashboards/crm',
+        href: 'https://demos.themeselection.com/Kideco-vuetify-vuejs-laravel-admin-template/demo-1/dashboards/crm',
         target: '_blank',
         badgeContent: 'Pro',
         badgeClass: 'bg-light-primary text-primary',
@@ -32,7 +32,7 @@ import VerticalNavLink from '@layouts/components/VerticalNavLink.vue'
     <VerticalNavLink
       :item="{
         title: 'ECommerce',
-        href: 'https://demos.themeselection.com/sneat-vuetify-vuejs-laravel-admin-template/demo-1/dashboards/ecommerce',
+        href: 'https://demos.themeselection.com/Kideco-vuetify-vuejs-laravel-admin-template/demo-1/dashboards/ecommerce',
         target: '_blank',
         badgeContent: 'Pro',
         badgeClass: 'bg-light-primary text-primary',
@@ -41,7 +41,7 @@ import VerticalNavLink from '@layouts/components/VerticalNavLink.vue'
     <VerticalNavLink
       :item="{
         title: 'Academy',
-        href: 'https://demos.themeselection.com/sneat-vuetify-vuejs-laravel-admin-template/demo-1/dashboards/academy',
+        href: 'https://demos.themeselection.com/Kideco-vuetify-vuejs-laravel-admin-template/demo-1/dashboards/academy',
         target: '_blank',
         badgeContent: 'Pro',
         badgeClass: 'bg-light-primary text-primary',
@@ -50,7 +50,7 @@ import VerticalNavLink from '@layouts/components/VerticalNavLink.vue'
     <VerticalNavLink
       :item="{
         title: 'Logistics',
-        href: 'https://demos.themeselection.com/sneat-vuetify-vuejs-laravel-admin-template/demo-1/dashboards/logistics',
+        href: 'https://demos.themeselection.com/Kideco-vuetify-vuejs-laravel-admin-template/demo-1/dashboards/logistics',
         target: '_blank',
         badgeContent: 'Pro',
         badgeClass: 'bg-light-primary text-primary',
@@ -70,35 +70,35 @@ import VerticalNavLink from '@layouts/components/VerticalNavLink.vue'
     <VerticalNavLink
       :item="{
         title: 'Landing',
-        href: 'https://demos.themeselection.com/sneat-vuetify-vuejs-laravel-admin-template/demo-1/front-pages/landing-page',
+        href: 'https://demos.themeselection.com/Kideco-vuetify-vuejs-laravel-admin-template/demo-1/front-pages/landing-page',
         target: '_blank',
       }"
     />
     <VerticalNavLink
       :item="{
         title: 'Pricing',
-        href: 'https://demos.themeselection.com/sneat-vuetify-vuejs-laravel-admin-template/demo-1/front-pages/pricing',
+        href: 'https://demos.themeselection.com/Kideco-vuetify-vuejs-laravel-admin-template/demo-1/front-pages/pricing',
         target: '_blank',
       }"
     />
     <VerticalNavLink
       :item="{
         title: 'Payment',
-        href: 'https://demos.themeselection.com/sneat-vuetify-vuejs-laravel-admin-template/demo-1/front-pages/payment',
+        href: 'https://demos.themeselection.com/Kideco-vuetify-vuejs-laravel-admin-template/demo-1/front-pages/payment',
         target: '_blank',
       }"
     />
     <VerticalNavLink
       :item="{
         title: 'Checkout',
-        href: 'https://demos.themeselection.com/sneat-vuetify-vuejs-laravel-admin-template/demo-1/front-pages/checkout',
+        href: 'https://demos.themeselection.com/Kideco-vuetify-vuejs-laravel-admin-template/demo-1/front-pages/checkout',
         target: '_blank',
       }"
     />
     <VerticalNavLink
       :item="{
         title: 'Help Center',
-        href: 'https://demos.themeselection.com/sneat-vuetify-vuejs-laravel-admin-template/demo-1/front-pages/help-center',
+        href: 'https://demos.themeselection.com/Kideco-vuetify-vuejs-laravel-admin-template/demo-1/front-pages/help-center',
         target: '_blank',
       }"
     />
@@ -114,7 +114,7 @@ import VerticalNavLink from '@layouts/components/VerticalNavLink.vue'
     :item="{
       title: 'Email',
       icon: 'bx-envelope',
-      href: 'https://demos.themeselection.com/sneat-vuetify-vuejs-laravel-admin-template/demo-1/apps/email',
+      href: 'https://demos.themeselection.com/Kideco-vuetify-vuejs-laravel-admin-template/demo-1/apps/email',
       target: '_blank',
       badgeContent: 'Pro',
       badgeClass: 'bg-light-primary text-primary',
@@ -124,7 +124,7 @@ import VerticalNavLink from '@layouts/components/VerticalNavLink.vue'
     :item="{
       title: 'Chat',
       icon: 'bx-chat',
-      href: 'https://demos.themeselection.com/sneat-vuetify-vuejs-laravel-admin-template/demo-1/apps/chat',
+      href: 'https://demos.themeselection.com/Kideco-vuetify-vuejs-laravel-admin-template/demo-1/apps/chat',
       target: '_blank',
       badgeContent: 'Pro',
       badgeClass: 'bg-light-primary text-primary',
@@ -134,7 +134,7 @@ import VerticalNavLink from '@layouts/components/VerticalNavLink.vue'
     :item="{
       title: 'Calendar',
       icon: 'bx-calendar',
-      href: 'https://demos.themeselection.com/sneat-vuetify-vuejs-laravel-admin-template/demo-1/apps/calendar',
+      href: 'https://demos.themeselection.com/Kideco-vuetify-vuejs-laravel-admin-template/demo-1/apps/calendar',
       target: '_blank',
       badgeContent: 'Pro',
       badgeClass: 'bg-light-primary text-primary',
@@ -144,7 +144,7 @@ import VerticalNavLink from '@layouts/components/VerticalNavLink.vue'
     :item="{
       title: 'Kanban',
       icon: 'bx-grid',
-      href: 'https://demos.themeselection.com/sneat-vuetify-vuejs-laravel-admin-template/demo-1/apps/kanban',
+      href: 'https://demos.themeselection.com/Kideco-vuetify-vuejs-laravel-admin-template/demo-1/apps/kanban',
       target: '_blank',
       badgeContent: 'Pro',
       badgeClass: 'bg-light-primary text-primary',
@@ -226,7 +226,7 @@ import VerticalNavLink from '@layouts/components/VerticalNavLink.vue'
     :item="{
       title: 'Form Validation',
       icon: 'bx-check-circle',
-      href: 'https://demos.themeselection.com/sneat-vuetify-vuejs-laravel-admin-template/demo-1/forms/form-validation',
+      href: 'https://demos.themeselection.com/Kideco-vuetify-vuejs-laravel-admin-template/demo-1/forms/form-validation',
       target: '_blank',
       badgeContent: 'Pro',
       badgeClass: 'bg-light-primary text-primary',
@@ -236,7 +236,7 @@ import VerticalNavLink from '@layouts/components/VerticalNavLink.vue'
     :item="{
       title: 'Form Wizard',
       icon: 'bx-align-middle',
-      href: 'https://demos.themeselection.com/sneat-vuetify-vuejs-laravel-admin-template/demo-1/forms/form-wizard-numbered',
+      href: 'https://demos.themeselection.com/Kideco-vuetify-vuejs-laravel-admin-template/demo-1/forms/form-wizard-numbered',
       target: '_blank',
       badgeContent: 'Pro',
       badgeClass: 'bg-light-primary text-primary',
@@ -260,7 +260,7 @@ import VerticalNavLink from '@layouts/components/VerticalNavLink.vue'
     :item="{
       title: 'Access Control',
       icon: 'bx-command',
-      href: 'https://demos.themeselection.com/sneat-vuetify-vuejs-laravel-admin-template/demo-1/access-control',
+      href: 'https://demos.themeselection.com/Kideco-vuetify-vuejs-laravel-admin-template/demo-1/access-control',
       target: '_blank',
       badgeContent: 'Pro',
       badgeClass: 'bg-light-primary text-primary',
@@ -270,14 +270,14 @@ import VerticalNavLink from '@layouts/components/VerticalNavLink.vue'
     :item="{
       title: 'Documentation',
       icon: 'bx-file',
-      href: 'https://demos.themeselection.com/sneat-vuetify-vuejs-admin-template/documentation/guide/laravel-integration/folder-structure.html',
+      href: 'https://demos.themeselection.com/Kideco-vuetify-vuejs-admin-template/documentation/guide/laravel-integration/folder-structure.html',
       target: '_blank',
     }"
   />
   <VerticalNavLink
     :item="{
       title: 'Raise Support',
-      href: 'https://github.com/themeselection/sneat-vuetify-vuejs-laravel-admin-template-free/issues',
+      href: 'https://github.com/themeselection/Kideco-vuetify-vuejs-laravel-admin-template-free/issues',
       icon: 'bx-phone',
       target: '_blank',
     }"

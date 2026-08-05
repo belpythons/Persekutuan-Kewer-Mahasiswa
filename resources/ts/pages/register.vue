@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import AuthProvider from '@/views/pages/authentication/AuthProvider.vue'
-import logo from '@images/logo.svg?raw'
 import authV1BottomShape from '@images/svg/auth-v1-bottom-shape.svg?url'
 import authV1TopShape from '@images/svg/auth-v1-top-shape.svg?url'
 
@@ -40,14 +39,13 @@ const isPasswordVisible = ref(false)
             to="/"
             class="app-logo"
           >
-            <!-- eslint-disable vue/no-v-html -->
-            <div
-              class="d-flex"
-              v-html="logo"
-            />
-            <h1 class="app-logo-title">
-              sneat
-            </h1>
+            <div class="d-flex align-center justify-center">
+              <img
+                src="/favicon.ico"
+                alt="Kideco"
+                style="max-inline-size: 200px; max-block-size: 50px; object-fit: contain;"
+              />
+            </div>
           </RouterLink>
         </VCardItem>
 

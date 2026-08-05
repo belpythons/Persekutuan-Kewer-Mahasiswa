@@ -1,6 +1,5 @@
 <script lang="ts" setup>
 import NavItems from '@/layouts/components/NavItems.vue'
-import logo from '@images/logo.svg?raw'
 import VerticalNavLayout from '@layouts/components/VerticalNavLayout.vue'
 
 // Components
@@ -63,16 +62,13 @@ import UserProfile from '@/layouts/components/UserProfile.vue'
         to="/"
         class="app-logo app-title-wrapper"
       >
-        <!-- eslint-disable vue/no-v-html -->
-        <div
-          class="d-flex"
-          v-html="logo"
-        />
-        <!-- eslint-enable -->
-
-        <h1 class="app-logo-title">
-          sneat
-        </h1>
+        <div class="d-flex align-center">
+          <img
+            src="/favicon.ico"
+            alt="Kideco"
+            class="kideco-nav-logo"
+          />
+        </div>
       </RouterLink>
 
       <IconBtn
@@ -110,13 +106,13 @@ import UserProfile from '@/layouts/components/UserProfile.vue'
 .app-logo {
   display: flex;
   align-items: center;
-  column-gap: 0.75rem;
+  inline-size: 100%;
 
-  .app-logo-title {
-    font-size: 1.25rem;
-    font-weight: 500;
-    line-height: 1.75rem;
-    text-transform: uppercase;
+  .kideco-nav-logo {
+    inline-size: auto;
+    max-inline-size: 175px;
+    block-size: 38px;
+    object-fit: contain;
   }
 }
 </style>
