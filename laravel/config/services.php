@@ -41,4 +41,9 @@ return [
         'retry'    => env('AI_SERVICE_RETRY_TIMES', 3),
     ],
 
+    'python_ai' => [
+        'url' => env('PYTHON_AI_SERVICE_URL', 'http://localhost:5000'),
+        'key' => env('AI_SERVICE_API_KEY', 'secret-ai-key-2026'),
+    ],
+
 ];
