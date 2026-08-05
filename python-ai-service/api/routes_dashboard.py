@@ -2,7 +2,7 @@
 Dashboard Web UI Routes — Tampilan sederhana untuk start microservice & melihat kalkulasi.
 Slug Routes:
   /dashboard          → Halaman utama status & navigasi
-  /dashboard/forecast → Form & hasil prediksi Fuel Ratio
+  /dashboard/forecast → Form & hasil prediksi Fuel Ratio (Single Day & 7-Day Horizon)
   /dashboard/anomaly  → Form & hasil deteksi anomali unit
   /dashboard/capacity → Form & hasil kalkulasi kapasitas 24 jam
 """
@@ -50,6 +50,9 @@ COMMON_CSS = """
   input:focus { outline:none; border-color:#38BDF8; box-shadow:0 0 0 3px rgba(56,189,248,.15); }
   button { background:linear-gradient(135deg,#0284C7,#0369A1); color:#fff; border:none; padding:12px 24px; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; transition:all .2s; }
   button:hover { transform:translateY(-1px); box-shadow:0 4px 12px rgba(2,132,199,.4); }
+  button.secondary { background:linear-gradient(135deg,#475569,#334155); }
+  button.secondary:hover { box-shadow:0 4px 12px rgba(71,85,105,.4); }
+  .btn-group { display:flex; gap:12px; }
   .result-box { background:#0F172A; border:1px solid #334155; border-radius:8px; padding:16px; margin-top:16px; }
   .result-box pre { color:#94A3B8; font-size:12px; line-height:1.5; white-space:pre-wrap; word-break:break-all; font-family:'Courier New',monospace; }
   table { width:100%; border-collapse:collapse; margin-top:12px; }
@@ -114,8 +117,8 @@ async def dashboard_home():
       <a href="/dashboard/forecast" class="card-link"><div class="card">
         <div class="icon">📈</div>
         <h2>Prediksi Fuel Ratio</h2>
-        <p>Prediksi Fuel Ratio harian (L/BCM) menggunakan XGBoost Regressor Model dengan evaluasi status NORMAL / WARNING / CRITICAL.</p>
-        <br><span class="badge badge-blue">POST /api/v1/forecast</span>
+        <p>Prediksi Fuel Ratio 1-Hari atau Horizon 7-Hari beruntun menggunakan XGBoost Regressor Model & Autoregressive Lags.</p>
+        <br><span class="badge badge-blue">POST /api/v1/forecast-7days</span>
       </div></a>
       <a href="/dashboard/anomaly" class="card-link"><div class="card">
         <div class="icon">🔍</div>
@@ -146,19 +149,19 @@ async def dashboard_home():
 @router.get("/forecast", response_class=HTMLResponse)
 async def dashboard_forecast():
     body = """
-    <h1>📈 Prediksi Fuel Ratio Harian</h1>
-    <p class="subtitle">XGBoost Regressor Model — TimeSeriesSplit 5-Fold CV</p>
+    <h1>📈 Prediksi Fuel Ratio Harian & Horizon 7-Hari</h1>
+    <p class="subtitle">XGBoost Regressor Model — TimeSeriesSplit 5-Fold CV & Autoregressive Horizon</p>
     <div class="info-box">
-      <b>💡 Mengapa Input Ini Bebas / Fleksibel?</b><br/>
-      • <b>Mode Otomatis dari Supabase:</b> Anda cukup memilih <b>Tanggal</b>! Jika parameter cuaca / operasional dikosongkan, sistem secara otomatis mengambil data cuaca & target historis dari database Supabase Cloud.<br/>
-      • <b>Mode Manual Override:</b> Jika Anda ingin melakukan simulasi Skenario "What-If" (misal: simulasi jika curah hujan ekstrem 50 mm), Anda dapat mengubah angka-angka parameter di bawah ini.
+      <b>💡 Fitur Horizon 7-Hari Beruntun:</b><br/>
+      • <b>Mode 7-Day Horizon:</b> Tekan tombol <b>📅 Horizon 7 Hari</b> untuk langsung memprediksi tren Fuel Ratio 7 hari ke depan dari tanggal awal yang dipilih.<br/>
+      • <b>Mode Otomatis DB:</b> Jika parameter dikosongkan, sistem mengambil data cuaca & produksi dari Supabase Cloud.
     </div>
     <div class="card">
       <h2>Input Parameter Operasional</h2>
       <form onsubmit="event.preventDefault(); submitForecast();">
         <div class="form-row">
-          <div><label>Tanggal (YYYY-MM-DD)</label><input type="date" id="f_date" value="2026-08-05" onchange="autoFetchWeather()"></div>
-          <div><label>Curah Hujan (mm) <small style="color:#64748B;">(Kosongkan untuk Otomatis dari DB)</small></label><input type="number" id="f_rain" placeholder="Otomatis dari DB" step="0.1" min="0"></div>
+          <div><label>Tanggal Awal (YYYY-MM-DD)</label><input type="date" id="f_date" value="2026-08-05" onchange="autoFetchWeather()"></div>
+          <div><label>Curah Hujan (mm) <small style="color:#64748B;">(Kosongkan untuk Otomatis DB)</small></label><input type="number" id="f_rain" placeholder="Otomatis dari DB" step="0.1" min="0"></div>
         </div>
         <div class="form-row">
           <div><label>Temperatur Maks (°C)</label><input type="number" id="f_temp" placeholder="Otomatis dari DB" step="0.1"></div>
@@ -168,7 +171,10 @@ async def dashboard_forecast():
           <div><label>Jarak Angkut (m)</label><input type="number" id="f_haul" placeholder="Otomatis dari DB" step="10"></div>
           <div><label>Target Produksi (BCM)</label><input type="number" id="f_prod" placeholder="Otomatis dari DB" step="100"></div>
         </div>
-        <button type="submit">🚀 Jalankan Prediksi</button>
+        <div class="btn-group">
+          <button type="submit">🚀 Prediksi 1 Hari</button>
+          <button type="button" class="secondary" onclick="submitForecast7Days()">📅 Horizon Forecast 7 Hari</button>
+        </div>
       </form>
       <div class="loading" id="forecast_result_loading">⏳ Memproses prediksi...</div>
       <div class="result-box" id="forecast_result"><pre style="color:#475569;">Hasil prediksi akan muncul di sini setelah menekan tombol.</pre></div>
@@ -205,6 +211,12 @@ async def dashboard_forecast():
         daily_prod_bcm: prodVal !== "" ? parseFloat(prodVal) : null
       };
       postAPI('/api/v1/forecast', payload, 'forecast_result');
+    }
+
+    function submitForecast7Days() {
+      const startDate = document.getElementById('f_date').value;
+      const payload = { start_date: startDate };
+      postAPI('/api/v1/forecast-7days', payload, 'forecast_result');
     }
     // Initial fetch on page load
     autoFetchWeather();

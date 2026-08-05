@@ -166,6 +166,14 @@ def test_api_endpoints_integration_and_latency(api_client):
     assert res_fc.status_code == 200
     assert lat_fc < 2000.0
     
+    # 7-Day Horizon Forecast API
+    t0_7d = time.time()
+    res_fc7 = api_client.post("/api/v1/forecast-7days", json={"start_date": "2026-08-05"})
+    lat_fc7 = (time.time() - t0_7d) * 1000
+    assert res_fc7.status_code == 200
+    assert len(res_fc7.json()["daily_forecasts"]) == 7
+    assert lat_fc7 < 3000.0
+    
     # Anomaly API
     t1 = time.time()
     res_an = api_client.post("/api/v1/anomaly-detect", json={

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
 import datetime
 
@@ -22,6 +22,9 @@ class ForecastRequest(BaseModel):
     fr_lag1: Optional[float] = Field(None, ge=0.1, example=1.025)
     fr_lag2: Optional[float] = Field(None, ge=0.1, example=1.015)
     rolling_avg_fr_7d: Optional[float] = Field(None, ge=0.1, example=1.020)
+
+class Forecast7DaysRequest(BaseModel):
+    start_date: str = Field(..., example="2026-08-05", description="Tanggal awal forecast 7 hari (YYYY-MM-DD)")
 
 class ForecastResponse(BaseModel):
     log_date: str
@@ -81,4 +84,22 @@ def predict_daily_fuel_ratio(request: ForecastRequest, db: Session = Depends(get
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Gagal melakukan inferensi forecasting: {str(e)}"
+        )
+
+@router.post("/forecast-7days", status_code=status.HTTP_200_OK)
+def predict_7days_horizon_fuel_ratio(request: Forecast7DaysRequest, db: Session = Depends(get_db)):
+    """
+    Melakukan prediksi Fuel Ratio beruntun selama 7 HARI berturut-turut (Horizon 7-Day Forecasting)
+    menggunakan data operasional & autoregressive lag pipeline dari Supabase Database.
+    """
+    try:
+        result = forecasting_service.forecast_7days_horizon(
+            start_date_str=request.start_date,
+            db_session=db
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Gagal melakukan inferensi 7-day horizon forecasting: {str(e)}"
         )

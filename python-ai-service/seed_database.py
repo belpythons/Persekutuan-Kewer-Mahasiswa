@@ -3,6 +3,7 @@ import sys
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
+from sqlalchemy import text
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -169,6 +170,16 @@ def seed_database():
             db.commit()
             print(" [OK] 365 Hari Time-Series Historical Logs berhasil di-seed.")
             
+        # Sync PostgreSQL PK sequence
+        if "postgresql" in str(engine.url):
+            try:
+                db.execute(text("SELECT setval('daily_forecast_logs_id_seq', (SELECT COALESCE(MAX(id), 1) FROM daily_forecast_logs));"))
+                db.execute(text("SELECT setval('weather_daily_logs_id_seq', (SELECT COALESCE(MAX(id), 1) FROM weather_daily_logs));"))
+                db.execute(text("SELECT setval('unit_anomaly_spikes_id_seq', (SELECT COALESCE(MAX(id), 1) FROM unit_anomaly_spikes));"))
+                db.commit()
+            except Exception as seq_err:
+                db.rollback()
+
         print("\n=== SEEDING COMPLETED SUCCESSFULLY ===")
     except Exception as e:
         db.rollback()
