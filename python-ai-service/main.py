@@ -7,6 +7,7 @@ from services.warmup import warmup_service
 from api.routes_forecast import router as forecast_router
 from api.routes_anomaly import router as anomaly_router
 from api.routes_capacity import router as capacity_router
+from api.routes_dashboard import router as dashboard_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -43,6 +44,7 @@ app.add_middleware(
 app.include_router(forecast_router)
 app.include_router(anomaly_router)
 app.include_router(capacity_router)
+app.include_router(dashboard_router)
 
 @app.get("/", status_code=status.HTTP_200_OK)
 def root():

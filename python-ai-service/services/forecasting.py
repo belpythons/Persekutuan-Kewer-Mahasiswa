@@ -42,28 +42,79 @@ class ForecastingService:
     def forecast_single_day(
         self,
         date_str: str,
-        curah_hujan_mm: float,
-        temp_max_c: float,
-        kecepatan_angin_kmh: float,
-        haul_distance_m: float,
-        daily_prod_bcm: float,
-        rain_lag1: float = 0.0,
-        rain_lag2: float = 0.0,
-        fr_lag1: float = 1.018,
-        fr_lag2: float = 1.018,
-        rolling_avg_fr_7d: float = 1.018,
+        curah_hujan_mm: Optional[float] = None,
+        temp_max_c: Optional[float] = None,
+        kecepatan_angin_kmh: Optional[float] = None,
+        haul_distance_m: Optional[float] = None,
+        daily_prod_bcm: Optional[float] = None,
+        rain_lag1: Optional[float] = None,
+        rain_lag2: Optional[float] = None,
+        fr_lag1: Optional[float] = None,
+        fr_lag2: Optional[float] = None,
+        rolling_avg_fr_7d: Optional[float] = None,
         db_session = None
     ) -> Dict[str, Any]:
         """
-        Memprediksi Fuel Ratio harian berdasarkan 13 variabel input operasional dan mengevaluasi Dynamic Thresholds.
+        Memprediksi Fuel Ratio harian berdasarkan 13 variabel input operasional.
+        Jika variabel cuaca / operasional tidak dikirim (None), sistem otomatis mengambil data dari database Supabase.
         """
         if self.model is None or self.scaler is None:
-            # Auto load atau train jika belum siap
             from pipelines.train_xgboost import train_xgboost_model
             train_xgboost_model(db_session)
             self._load_model()
             
         dt = pd.to_datetime(date_str)
+        cur_date = dt.date()
+
+        # Auto-query database untuk melengkapi variabel yang kosong (None)
+        if db_session is not None:
+            w_record = db_session.query(WeatherDailyLog).filter(WeatherDailyLog.log_date == cur_date).first()
+            if w_record:
+                if curah_hujan_mm is None: curah_hujan_mm = float(w_record.curah_hujan_mm)
+                if temp_max_c is None: temp_max_c = float(w_record.temp_max_c)
+                if kecepatan_angin_kmh is None: kecepatan_angin_kmh = float(w_record.kecepatan_angin_kmh)
+                
+            f_record = db_session.query(DailyForecastLog).filter(DailyForecastLog.log_date == cur_date).first()
+            if f_record:
+                if haul_distance_m is None: haul_distance_m = float(f_record.haul_distance_m)
+                if daily_prod_bcm is None: daily_prod_bcm = float(f_record.daily_prod_bcm)
+
+            # Auto-calculate Lags dari database jika None
+            if rain_lag1 is None:
+                w1 = db_session.query(WeatherDailyLog).filter(WeatherDailyLog.log_date == cur_date - datetime.timedelta(days=1)).first()
+                rain_lag1 = float(w1.curah_hujan_mm) if w1 else 0.0
+            if rain_lag2 is None:
+                w2 = db_session.query(WeatherDailyLog).filter(WeatherDailyLog.log_date == cur_date - datetime.timedelta(days=2)).first()
+                rain_lag2 = float(w2.curah_hujan_mm) if w2 else 0.0
+
+            if fr_lag1 is None:
+                f1 = db_session.query(DailyForecastLog).filter(DailyForecastLog.log_date == cur_date - datetime.timedelta(days=1)).first()
+                fr_lag1 = float(f1.forecast_fr if f1 else BASE_TOTAL_FR_BUDGET)
+            if fr_lag2 is None:
+                f2 = db_session.query(DailyForecastLog).filter(DailyForecastLog.log_date == cur_date - datetime.timedelta(days=2)).first()
+                fr_lag2 = float(f2.forecast_fr if f2 else BASE_TOTAL_FR_BUDGET)
+
+            if rolling_avg_fr_7d is None:
+                f_7d = db_session.query(DailyForecastLog.forecast_fr)\
+                    .filter(DailyForecastLog.log_date < cur_date)\
+                    .order_by(DailyForecastLog.log_date.desc()).limit(7).all()
+                if f_7d:
+                    rolling_avg_fr_7d = float(np.mean([r[0] for r in f_7d if r[0] is not None]))
+                else:
+                    rolling_avg_fr_7d = BASE_TOTAL_FR_BUDGET
+
+        # Fallback default values jika tetap None (misal tanggal belum ada di DB)
+        if curah_hujan_mm is None: curah_hujan_mm = 0.0
+        if temp_max_c is None: temp_max_c = 32.0
+        if kecepatan_angin_kmh is None: kecepatan_angin_kmh = 12.0
+        if haul_distance_m is None: haul_distance_m = 3900.0
+        if daily_prod_bcm is None: daily_prod_bcm = 40000.0
+        if rain_lag1 is None: rain_lag1 = 0.0
+        if rain_lag2 is None: rain_lag2 = 0.0
+        if fr_lag1 is None: fr_lag1 = BASE_TOTAL_FR_BUDGET
+        if fr_lag2 is None: fr_lag2 = BASE_TOTAL_FR_BUDGET
+        if rolling_avg_fr_7d is None: rolling_avg_fr_7d = BASE_TOTAL_FR_BUDGET
+
         day_of_week = dt.dayofweek
         month = dt.month
         is_weekend = 1 if day_of_week in [5, 6] else 0
@@ -118,6 +169,88 @@ class ForecastingService:
             
         return result
 
+    def forecast_7days_horizon(
+        self,
+        start_date_str: str,
+        db_session = None
+    ) -> Dict[str, Any]:
+        """
+        Melakukan prediksi Fuel Ratio beruntun selama 7 HARI berturut-turut (Horizon 7-Day Forecasting)
+        dimulai dari start_date_str dengan memperbarui autoregressive lag variables secara ilmiah.
+        """
+        start_dt = pd.to_datetime(start_date_str)
+        daily_results = []
+        
+        running_fr_lags = []
+        running_rain_lags = []
+        
+        # Pull initial history for lags from DB
+        if db_session is not None:
+            cur_d = start_dt.date()
+            f_prev = db_session.query(DailyForecastLog.forecast_fr)\
+                .filter(DailyForecastLog.log_date < cur_d)\
+                .order_by(DailyForecastLog.log_date.desc()).limit(7).all()
+            if f_prev:
+                running_fr_lags = [r[0] for r in f_prev if r[0] is not None]
+            w_prev = db_session.query(WeatherDailyLog.curah_hujan_mm)\
+                .filter(WeatherDailyLog.log_date < cur_d)\
+                .order_by(WeatherDailyLog.log_date.desc()).limit(2).all()
+            if w_prev:
+                running_rain_lags = [w[0] for w in w_prev if w[0] is not None]
+                
+        if not running_fr_lags:
+            running_fr_lags = [BASE_TOTAL_FR_BUDGET] * 7
+        if not running_rain_lags:
+            running_rain_lags = [0.0, 0.0]
+
+        for step in range(7):
+            cur_date_dt = start_dt + datetime.timedelta(days=step)
+            cur_date_str = cur_date_dt.strftime("%Y-%m-%d")
+            
+            rain_l1 = running_rain_lags[0] if len(running_rain_lags) > 0 else 0.0
+            rain_l2 = running_rain_lags[1] if len(running_rain_lags) > 1 else 0.0
+            fr_l1 = running_fr_lags[0] if len(running_fr_lags) > 0 else BASE_TOTAL_FR_BUDGET
+            fr_l2 = running_fr_lags[1] if len(running_fr_lags) > 1 else BASE_TOTAL_FR_BUDGET
+            r_avg7d = float(np.mean(running_fr_lags[:7])) if running_fr_lags else BASE_TOTAL_FR_BUDGET
+            
+            single_res = self.forecast_single_day(
+                date_str=cur_date_str,
+                rain_lag1=rain_l1,
+                rain_lag2=rain_l2,
+                fr_lag1=fr_l1,
+                fr_lag2=fr_l2,
+                rolling_avg_fr_7d=r_avg7d,
+                db_session=db_session
+            )
+            
+            daily_results.append(single_res)
+            
+            # Update running lag lists with current step predictions
+            pred_fr = single_res["forecast_fr"]
+            rain_val = single_res["features_input"]["Curah_Hujan_mm"]
+            
+            running_fr_lags.insert(0, pred_fr)
+            running_rain_lags.insert(0, rain_val)
+
+        # Summary Metrics
+        all_fr = [d["forecast_fr"] for d in daily_results]
+        warning_count = sum(1 for d in daily_results if d["status"] == "WARNING")
+        critical_count = sum(1 for d in daily_results if d["status"] == "CRITICAL")
+        
+        return {
+            "start_date": start_date_str,
+            "end_date": (start_dt + datetime.timedelta(days=6)).strftime("%Y-%m-%d"),
+            "forecast_horizon_days": 7,
+            "summary": {
+                "avg_forecast_fr": round(float(np.mean(all_fr)), 4),
+                "max_forecast_fr": round(float(np.max(all_fr)), 4),
+                "min_forecast_fr": round(float(np.min(all_fr)), 4),
+                "warning_alert_days": warning_count,
+                "critical_alert_days": critical_count
+            },
+            "daily_forecasts": daily_results
+        }
+
     def _save_forecast_to_db(self, db, result: Dict[str, Any]):
         """
         Menyimpan atau memperbarui data log prediksi di database PostgreSQL / SQLite
@@ -134,6 +267,11 @@ class ForecastingService:
                 log_entry.daily_prod_bcm = result["daily_prod_bcm"]
                 log_entry.haul_distance_m = result["haul_distance_m"]
             else:
+                from sqlalchemy import text
+                try:
+                    db.execute(text("SELECT setval('daily_forecast_logs_id_seq', (SELECT COALESCE(MAX(id), 1) FROM daily_forecast_logs));"))
+                except Exception:
+                    pass
                 log_entry = DailyForecastLog(
                     log_date=log_date,
                     forecast_fr=result["forecast_fr"],
