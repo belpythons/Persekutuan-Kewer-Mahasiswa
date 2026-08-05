@@ -6,20 +6,20 @@
     "Unit_FR_Ratio",
     "Unit_Fuel_Ratio"
   ],
-  "training_sample_count": 2451,
-  "final_normal_loss_mse": 0.00013676118396688253,
-  "global_threshold": 0.05,
+  "training_sample_count": 2477,
+  "final_normal_loss_mse": 0.07297759503126144,
+  "global_threshold": 1.4473789930343628,
   "activity_thresholds": {
-    "SUPPORT": 0.05,
-    "LOADING": 0.05,
-    "HAULING": 0.05,
-    "DEWATERING": 0.05
+    "SUPPORT": 1.3523404598236084,
+    "HAULING": 1.25148606300354,
+    "LOADING": 1.4806993007659912,
+    "DEWATERING": 1.465747594833374
   },
   "evaluation": {
-    "precision": 1.0,
-    "recall": 1.0,
-    "true_positive": 109,
-    "false_positive": 0,
-    "false_negative": 0
+    "precision": 0.851063829787234,
+    "recall": 0.975609756097561,
+    "true_positive": 80,
+    "false_positive": 14,
+    "false_negative": 2
   }
 }
