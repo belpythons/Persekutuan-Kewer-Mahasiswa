@@ -17,8 +17,8 @@ class EquipmentInput(BaseModel):
 
 class CapacityRequest(BaseModel):
     date: str = Field(..., example="2026-08-05", description="Tanggal operasional (YYYY-MM-DD)")
-    forecast_prod_bcm: float = Field(40000.0, ge=1000.0, le=150000.0, example=40000.0, description="Hasil forecast produksi BCM harian")
-    curah_hujan_mm: float = Field(0.0, ge=0.0, example=12.5, description="Prakiraan curah hujan (mm)")
+    forecast_prod_bcm: Optional[float] = Field(40000.0, ge=1000.0, le=500000.0, example=40000.0, description="Hasil forecast produksi BCM harian")
+    curah_hujan_mm: Optional[float] = Field(0.0, ge=0.0, le=200.0, example=12.5, description="Prakiraan curah hujan (mm)")
     equipment_list: Optional[List[EquipmentInput]] = Field(None, description="Daftar armada (Opsional, jika kosong mengambil dari DB)")
     nn_spike_count_by_unit: Optional[Dict[str, int]] = Field(None, example={"HD785-7MUD": 2}, description="Map bobot anomali spike unit hasil Autoencoder")
 

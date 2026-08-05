@@ -1,6 +1,9 @@
+# pyrefly: ignore [missing-import]
 from fastapi import APIRouter, Depends, HTTPException, status
+# pyrefly: ignore [missing-import]
 from pydantic import BaseModel, Field
 from typing import Dict, Any, List, Optional
+# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -26,14 +29,38 @@ def detect_unit_fuel_anomalies(request: AnomalyScanRequest, db: Session = Depend
     Scans unit fuel consumption records and detects uncharacteristic fuel spikes (anomalies)
     using PyTorch Deep Autoencoder trained exclusively on normal baseline operation data.
     """
-    if not request.records:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Daftar catatan unit (records) tidak boleh kosong."
-        )
-        
     try:
-        raw_records = [r.dict() for r in request.records]
+        if not request.records:
+            # FALLBACK: If records are empty, fetch the latest date's records from DB
+            from models_db import UnitAnomalySpike, WeatherDailyLog
+            latest_spike = db.query(UnitAnomalySpike).order_by(UnitAnomalySpike.log_date.desc()).first()
+            if not latest_spike:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Daftar catatan unit (records) kosong dan tidak ada data historis di database."
+                )
+            
+            latest_date = latest_spike.log_date
+            db_records = db.query(UnitAnomalySpike).filter(UnitAnomalySpike.log_date == latest_date).all()
+            
+            # Optionally get rain from WeatherDailyLog
+            weather = db.query(WeatherDailyLog).filter(WeatherDailyLog.log_date == latest_date).first()
+            rain_val = weather.curah_hujan_mm if weather else 0.0
+            
+            raw_records = []
+            for r in db_records:
+                raw_records.append({
+                    "Date": r.log_date.strftime("%Y-%m-%d"),
+                    "Unit": r.unit_code,
+                    "Activity": r.activity,
+                    "FC_Actual": r.fc_actual,
+                    "Unit_Fuel_L_Day": r.unit_fuel_day,
+                    "Unit_FR": r.unit_fr,
+                    "Rain_mm": rain_val
+                })
+        else:
+            raw_records = [r.dict() for r in request.records]
+            
         result = autoencoder_service.detect_anomalies_for_records(raw_records, db_session=db)
         return result
     except Exception as e:

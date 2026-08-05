@@ -69,3 +69,8 @@ def check_db_connection() -> dict:
             "status": "disconnected",
             "error": str(e)
         }
+
+# Auto-create tables for fallback SQLite if they don't exist
+if "sqlite" in str(engine.url):
+    import models_db  # Ensure models are registered
+    Base.metadata.create_all(engine)

@@ -1,0 +1,605 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "KIDECO Fuel Ratio AI Service",
+    "description": "Microservice AI untuk Forecasting Fuel Ratio, Deteksi Anomali Unit (PyTorch Autoencoder), dan Combined Capacity Determination.",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/forecast": {
+      "post": {
+        "tags": [
+          "Forecasting Engine"
+        ],
+        "summary": "Predict Daily Fuel Ratio",
+        "description": "Predicts daily Total Fuel Ratio (L/BCM) and evaluates operational alert status (NORMAL, WARNING, CRITICAL)\nusing trained XGBoost Regressor and TimeSeriesSplit feature pipeline.",
+        "operationId": "predict_daily_fuel_ratio_api_v1_forecast_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForecastRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForecastResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/anomaly-detect": {
+      "post": {
+        "tags": [
+          "Anomaly Detection Engine"
+        ],
+        "summary": "Detect Unit Fuel Anomalies",
+        "description": "Scans unit fuel consumption records and detects uncharacteristic fuel spikes (anomalies)\nusing PyTorch Deep Autoencoder trained exclusively on normal baseline operation data.",
+        "operationId": "detect_unit_fuel_anomalies_api_v1_anomaly_detect_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnomalyScanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/calculate-capacity": {
+      "post": {
+        "tags": [
+          "Capacity Determination Engine"
+        ],
+        "summary": "Calculate Combined Capacity Allocation",
+        "description": "Calculates dynamic effective fleet capacity, required operating units, utilization percentage,\nand combined daily fuel allocation by integrating XGBoost Forecast + PyTorch Autoencoder Spikes + Non-linear Rain Derating.",
+        "operationId": "calculate_combined_capacity_allocation_api_v1_calculate_capacity_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CapacityRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/": {
+      "get": {
+        "summary": "Root",
+        "operationId": "root__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Health Check",
+        "description": "Health Check Endpoint: Memeriksa kesehatan service dan status koneksi ke Database",
+        "operationId": "health_check_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ready": {
+      "get": {
+        "summary": "Readiness Check",
+        "description": "Readiness Probe: Memastikan model ML sudah pre-loaded di RAM dan siap menerima trafik inferensi (< 2.0s latency)",
+        "operationId": "readiness_check_ready_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AnomalyScanRequest": {
+        "properties": {
+          "records": {
+            "items": {
+              "$ref": "#/components/schemas/UnitRecordInput"
+            },
+            "type": "array",
+            "title": "Records"
+          }
+        },
+        "type": "object",
+        "required": [
+          "records"
+        ],
+        "title": "AnomalyScanRequest"
+      },
+      "CapacityRequest": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "title": "Date",
+            "description": "Tanggal operasional (YYYY-MM-DD)",
+            "example": "2026-08-05"
+          },
+          "forecast_prod_bcm": {
+            "type": "number",
+            "maximum": 150000.0,
+            "minimum": 1000.0,
+            "title": "Forecast Prod Bcm",
+            "description": "Hasil forecast produksi BCM harian",
+            "default": 40000.0,
+            "example": 40000.0
+          },
+          "curah_hujan_mm": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Curah Hujan Mm",
+            "description": "Prakiraan curah hujan (mm)",
+            "default": 0.0,
+            "example": 12.5
+          },
+          "equipment_list": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/EquipmentInput"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Equipment List",
+            "description": "Daftar armada (Opsional, jika kosong mengambil dari DB)"
+          },
+          "nn_spike_count_by_unit": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nn Spike Count By Unit",
+            "description": "Map bobot anomali spike unit hasil Autoencoder",
+            "example": {
+              "HD785-7MUD": 2
+            }
+          }
+        },
+        "type": "object",
+        "required": [
+          "date"
+        ],
+        "title": "CapacityRequest"
+      },
+      "EquipmentInput": {
+        "properties": {
+          "unit_name": {
+            "type": "string",
+            "title": "Unit Name",
+            "description": "Nama/Tipe Alat Heavy Equipment",
+            "example": "HD785-7"
+          },
+          "qty": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Qty",
+            "description": "Jumlah populasi unit",
+            "example": 205
+          },
+          "activity": {
+            "type": "string",
+            "title": "Activity",
+            "description": "Aktivitas (LOADING, HAULING, SUPPORT, DEWATERING)",
+            "example": "HAULING"
+          },
+          "fc_lhr": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Fc Lhr",
+            "description": "Konsumsi BBM standar (L/hr)",
+            "example": 75.0
+          },
+          "prod_bcmhr": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prod Bcmhr",
+            "description": "Kapasitas produksi per jam (BCM/hr)",
+            "default": 0.0,
+            "example": 109.56
+          }
+        },
+        "type": "object",
+        "required": [
+          "unit_name",
+          "qty",
+          "activity",
+          "fc_lhr"
+        ],
+        "title": "EquipmentInput"
+      },
+      "ForecastRequest": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "title": "Date",
+            "description": "Tanggal operasional (YYYY-MM-DD)",
+            "example": "2026-08-05"
+          },
+          "curah_hujan_mm": {
+            "type": "number",
+            "maximum": 200.0,
+            "minimum": 0.0,
+            "title": "Curah Hujan Mm",
+            "description": "Prakiraan curah hujan (mm)",
+            "default": 0.0,
+            "example": 12.5
+          },
+          "temp_max_c": {
+            "type": "number",
+            "maximum": 50.0,
+            "minimum": 10.0,
+            "title": "Temp Max C",
+            "description": "Suhu maksimum (\u00b0C)",
+            "default": 32.0,
+            "example": 33.5
+          },
+          "kecepatan_angin_kmh": {
+            "type": "number",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Kecepatan Angin Kmh",
+            "description": "Kecepatan angin (km/h)",
+            "default": 12.0,
+            "example": 15.0
+          },
+          "haul_distance_m": {
+            "type": "number",
+            "maximum": 15000.0,
+            "minimum": 500.0,
+            "title": "Haul Distance M",
+            "description": "Jarak angkut (meter)",
+            "default": 3900.0,
+            "example": 4100.0
+          },
+          "daily_prod_bcm": {
+            "type": "number",
+            "maximum": 150000.0,
+            "minimum": 1000.0,
+            "title": "Daily Prod Bcm",
+            "description": "Target produksi harian (BCM)",
+            "default": 40000.0,
+            "example": 42000.0
+          },
+          "rain_lag1": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rain Lag1",
+            "default": 0.0,
+            "example": 5.0
+          },
+          "rain_lag2": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rain Lag2",
+            "default": 0.0,
+            "example": 0.0
+          },
+          "fr_lag1": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fr Lag1",
+            "default": 1.018,
+            "example": 1.025
+          },
+          "fr_lag2": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fr Lag2",
+            "default": 1.018,
+            "example": 1.015
+          },
+          "rolling_avg_fr_7d": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rolling Avg Fr 7D",
+            "default": 1.018,
+            "example": 1.02
+          }
+        },
+        "type": "object",
+        "required": [
+          "date"
+        ],
+        "title": "ForecastRequest"
+      },
+      "ForecastResponse": {
+        "properties": {
+          "log_date": {
+            "type": "string",
+            "title": "Log Date"
+          },
+          "forecast_fr": {
+            "type": "number",
+            "title": "Forecast Fr"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "warning_threshold": {
+            "type": "number",
+            "title": "Warning Threshold"
+          },
+          "critical_threshold": {
+            "type": "number",
+            "title": "Critical Threshold"
+          },
+          "daily_prod_bcm": {
+            "type": "number",
+            "title": "Daily Prod Bcm"
+          },
+          "haul_distance_m": {
+            "type": "number",
+            "title": "Haul Distance M"
+          },
+          "features_input": {
+            "type": "object",
+            "title": "Features Input"
+          }
+        },
+        "type": "object",
+        "required": [
+          "log_date",
+          "forecast_fr",
+          "status",
+          "warning_threshold",
+          "critical_threshold",
+          "daily_prod_bcm",
+          "haul_distance_m",
+          "features_input"
+        ],
+        "title": "ForecastResponse"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "UnitRecordInput": {
+        "properties": {
+          "Date": {
+            "type": "string",
+            "title": "Date",
+            "description": "Tanggal catatan (YYYY-MM-DD)",
+            "example": "2026-08-05"
+          },
+          "Unit": {
+            "type": "string",
+            "title": "Unit",
+            "description": "Kode/Nama Unit Alat",
+            "example": "HD785-7"
+          },
+          "Activity": {
+            "type": "string",
+            "title": "Activity",
+            "description": "Kategori Aktivitas (LOADING, HAULING, SUPPORT, DEWATERING)",
+            "example": "HAULING"
+          },
+          "FC_Actual": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Fc Actual",
+            "description": "Konsumsi BBM Aktual per Jam (L/hr)",
+            "example": 78.5
+          },
+          "Unit_Fuel_L_Day": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Unit Fuel L Day",
+            "description": "Total BBM Harian Unit (L/day)",
+            "example": 1570.0
+          },
+          "Unit_FR": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Unit Fr",
+            "description": "Fuel Ratio individual unit (L/BCM)",
+            "example": 0.285
+          },
+          "Rain_mm": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Rain Mm",
+            "description": "Curah hujan harian (mm)",
+            "default": 0.0,
+            "example": 5.0
+          }
+        },
+        "type": "object",
+        "required": [
+          "Date",
+          "Unit",
+          "Activity",
+          "FC_Actual",
+          "Unit_Fuel_L_Day",
+          "Unit_FR"
+        ],
+        "title": "UnitRecordInput"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

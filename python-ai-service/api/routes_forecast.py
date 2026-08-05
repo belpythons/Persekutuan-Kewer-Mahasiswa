@@ -16,7 +16,7 @@ class ForecastRequest(BaseModel):
     temp_max_c: Optional[float] = Field(None, ge=10.0, le=50.0, example=33.5, description="Suhu maksimum (°C) — Opsional")
     kecepatan_angin_kmh: Optional[float] = Field(None, ge=0.0, le=100.0, example=15.0, description="Kecepatan angin (km/h) — Opsional")
     haul_distance_m: Optional[float] = Field(None, ge=500.0, le=15000.0, example=4100.0, description="Jarak angkut (meter) — Opsional")
-    daily_prod_bcm: Optional[float] = Field(None, ge=1000.0, le=150000.0, example=42000.0, description="Target produksi harian (BCM) — Opsional")
+    daily_prod_bcm: Optional[float] = Field(None, ge=1000.0, le=500000.0, example=42000.0, description="Target produksi harian (BCM) — Opsional")
     rain_lag1: Optional[float] = Field(None, ge=0.0, example=5.0)
     rain_lag2: Optional[float] = Field(None, ge=0.0, example=0.0)
     fr_lag1: Optional[float] = Field(None, ge=0.1, example=1.025)
@@ -102,4 +102,36 @@ def predict_7days_horizon_fuel_ratio(request: Forecast7DaysRequest, db: Session 
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Gagal melakukan inferensi 7-day horizon forecasting: {str(e)}"
+        )
+
+@router.get("/forecast-history", status_code=status.HTTP_200_OK)
+def get_forecast_history(days: int = 30, db: Session = Depends(get_db)):
+    """
+    Mengambil data log historis Fuel Ratio harian dari database (default: 30 hari terakhir).
+    """
+    try:
+        logs = db.query(DailyForecastLog)\
+            .order_by(DailyForecastLog.log_date.desc())\
+            .limit(days).all()
+        
+        logs_sorted = sorted(logs, key=lambda x: x.log_date)
+        
+        return {
+            "total": len(logs_sorted),
+            "historical_logs": [
+                {
+                    "log_date": l.log_date.strftime("%Y-%m-%d"),
+                    "actual_fr": round(float(l.actual_fr), 4) if l.actual_fr is not None else round(float(l.forecast_fr), 4),
+                    "forecast_fr": round(float(l.forecast_fr), 4),
+                    "status": l.status,
+                    "daily_prod_bcm": float(l.daily_prod_bcm),
+                    "haul_distance_m": float(l.haul_distance_m)
+                }
+                for l in logs_sorted
+            ]
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Gagal mengambil log historis forecast: {str(e)}"
         )
