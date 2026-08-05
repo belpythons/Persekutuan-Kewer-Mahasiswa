@@ -72,3 +72,28 @@ def perform_global_capacity_tuning(request: GlobalTuningRequest, db: Session = D
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Gagal melakukan global capacity tuning: {str(e)}"
         )
+
+@router.get("/capacity-factual-comparison/{date_str}", status_code=status.HTTP_200_OK)
+def get_capacity_factual_comparison_and_tag_anomalies(
+    date_str: str,
+    auto_tag_training_anomalies: bool = True,
+    db: Session = Depends(get_db)
+):
+    """
+    Dynamic GET Endpoint Komparasi Faktual vs Kapasitas Cuaca BMKG:
+    Mengambil data unit armada & data faktual riil (termasuk cuaca BMKG) berdasarkan tanggal,
+    membandingkannya dengan batas toleransi kapasitas efisiensi cuaca,
+    serta otomatis menandai keborosan MURNI TIDAK DIPENGARUHI CUACA sebagai sampel data training anomali.
+    """
+    try:
+        result = capacity_engine.compare_factual_capacity_and_tag_anomalies(
+            date_str=date_str,
+            auto_tag_training_anomalies=auto_tag_training_anomalies,
+            db_session=db
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Gagal memproses komparasi faktual & tagging sampel training anomali: {str(e)}"
+        )

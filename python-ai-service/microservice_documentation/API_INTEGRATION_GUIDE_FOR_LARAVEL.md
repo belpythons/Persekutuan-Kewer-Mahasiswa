@@ -435,6 +435,55 @@ Audit komparasi anomali real-time antara **Data Telemetri Mesin Hardware IoT (Fl
 }
 ```
 
+### 2.8. Dynamic Factual vs Capacity & Anomaly Training Tagging Endpoint (`GET /api/v1/capacity-factual-comparison/{date_str}`)
+
+Endpoint GET dinamis untuk mengambil data unit armada dan data faktual riil (termasuk cuaca BMKG) berdasarkan tanggal, membandingkannya terhadap batas toleransi kapasitas efisiensi cuaca, serta **otomatis menandai keborosan MURNI TIDAK DIPENGARUHI CUACA sebagai sampel data training anomali** (`Is_Known_Anomaly = 1` / `nn_anomaly_spike = 1`).
+
+- **Endpoint:** `GET /api/v1/capacity-factual-comparison/{date_str}?auto_tag_training_anomalies=true`
+- **Response Payload `200 OK` Example:**
+```json
+{
+  "log_date": "2026-08-05",
+  "bmkg_weather_data": {
+    "curah_hujan_mm": 5.0,
+    "temp_max_c": 32.0,
+    "kecepatan_angin_kmh": 12.0,
+    "rain_derating_factor": 1.0,
+    "weather_condition": "CLEAR_NORMAL"
+  },
+  "factual_capacity_summary": {
+    "total_units_evaluated": 7,
+    "total_factual_fuel_lday": 25200.0,
+    "total_weather_allowed_fuel_lday": 24097.4,
+    "net_variance_liters": 1102.6,
+    "overall_variance_pct": 4.57,
+    "genuine_non_weather_anomalies_count": 1,
+    "training_samples_tagged": 1
+  },
+  "unit_factual_comparisons": [
+    {
+      "unit_name": "HD785-7MUD",
+      "activity": "HAULING",
+      "fleet_qty": 33,
+      "std_fc_lhr": 75.0,
+      "std_prod_bcmhr": 109.56,
+      "factual_hm_operating_hours": 20.0,
+      "factual_fuel_consumed_lday": 6400.0,
+      "actual_fc_lhr": 96.97,
+      "factual_payload_bcm": 3200.0,
+      "weather_allowed_fuel_lday": 5346.0,
+      "fuel_variance_liters": 1054.0,
+      "fuel_variance_pct": 19.72,
+      "rain_derating_factor": 1.0,
+      "is_weather_induced": false,
+      "is_genuine_machine_anomaly": true,
+      "tagged_for_training_anomaly": true,
+      "anomaly_status": "NON_WEATHER_GENUINE_ANOMALY_TRAINING_SAMPLE"
+    }
+  ]
+}
+```
+
 ---
 
 ## 💻 3. Contoh Implementasi Client Service Class di Laravel (PHP)

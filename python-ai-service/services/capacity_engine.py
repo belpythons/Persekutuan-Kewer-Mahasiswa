@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database import SessionLocal
 from models_db import (
     CapacityAllocation, EquipmentCatalog, LoadingUnitBaseline, HaulingUnitBaseline,
-    WeatherDailyLog, DailyForecastLog, UnitAnomalySpike
+    WeatherDailyLog, DailyForecastLog, UnitAnomalySpike, IoTTelemetryLog
 )
 from services.forecasting import forecasting_service
 from services.autoencoder import autoencoder_service
@@ -357,6 +357,178 @@ class CombinedCapacityEngine:
                 },
                 "activity_breakdown": tuned_cap["activity_breakdown"],
                 "unit_tuning_comparison": unit_tuning_breakdown
+            }
+
+        finally:
+            if close_db:
+                db.close()
+
+    def compare_factual_capacity_and_tag_anomalies(
+        self,
+        date_str: str,
+        auto_tag_training_anomalies: bool = True,
+        db_session = None
+    ) -> Dict[str, Any]:
+        """
+        Dynamic Factual vs Capacity Comparison Engine:
+        Menarik data armada dan data faktual aktual (termasuk BMKG) dari DB,
+        membandingkan pemakaian riil terhadap batas toleransi kapasitas efisiensi cuaca.
+        Anomali keborosan yang TIDAK DIPENGARUHI CUACA (Non-Weather Anomaly) secara otomatis
+        ditandai sebagai sampel data training anomali (Is_Known_Anomaly = 1 / nn_anomaly_spike = 1).
+        """
+        if db_session is None:
+            db = SessionLocal()
+            close_db = True
+        else:
+            db = db_session
+            close_db = False
+
+        try:
+            log_date = pd.to_datetime(date_str).date()
+
+            # 1. Fetch Weather Data (BMKG Log)
+            w_entry = db.query(WeatherDailyLog).filter(WeatherDailyLog.log_date == log_date).first()
+            rain_mm = float(w_entry.curah_hujan_mm) if w_entry else 0.0
+            temp_c = float(w_entry.temp_max_c) if w_entry else 32.0
+            wind_kmh = float(w_entry.kecepatan_angin_kmh) if w_entry else 12.0
+
+            rain_derating = calculate_rain_derating_non_linear(rain_mm)
+
+            # 2. Fetch Dynamic Catalog & Factual IoT / Spike Records
+            catalogs = db.query(EquipmentCatalog).all()
+
+            # Fetch factual usage from IoT log or UnitAnomalySpike
+            iot_logs = {i.unit_code: i for i in db.query(IoTTelemetryLog).filter(IoTTelemetryLog.log_date == log_date).all()}
+            anomaly_spikes = {a.unit_code: a for a in db.query(UnitAnomalySpike).filter(UnitAnomalySpike.log_date == log_date).all()}
+
+            unit_comparisons = []
+            tagged_anomalies_count = 0
+            total_factual_fuel_l = 0.0
+            total_weather_allowed_fuel_l = 0.0
+
+            for eq in catalogs:
+                u_name = eq.unit_name
+                u_act = eq.activity
+                u_qty = eq.qty
+                fc_std = float(eq.fc_lhr)
+                prod_std = float(eq.prod_bcmhr)
+
+                # Fetch actual factual data
+                iot_entry = iot_logs.get(u_name)
+                spike_entry = anomaly_spikes.get(u_name)
+
+                if iot_entry:
+                    factual_hm = float(iot_entry.hm_operating_hours or OPERATING_HOURS_PER_DAY)
+                    factual_fuel = float(iot_entry.fuel_consumed_iot_l or 0.0)
+                    factual_payload = float(iot_entry.actual_payload_bcm or 0.0)
+                elif spike_entry:
+                    factual_hm = OPERATING_HOURS_PER_DAY
+                    factual_fuel = float(spike_entry.unit_fuel_day or 0.0)
+                    factual_payload = (factual_fuel / max(0.01, float(spike_entry.unit_fr))) if float(spike_entry.unit_fr) > 0 else 0.0
+                else:
+                    # Default factual fallback jika belum ada log
+                    factual_hm = OPERATING_HOURS_PER_DAY
+                    factual_fuel = u_qty * OPERATING_HOURS_PER_DAY * fc_std * 0.95
+                    factual_payload = u_qty * OPERATING_HOURS_PER_DAY * prod_std * rain_derating * 0.95
+
+                actual_fc_lhr = factual_fuel / max(0.1, factual_hm)
+                
+                # Base Theoretical Fuel & Weather Allowed Fuel
+                base_theoretical_fuel = u_qty * factual_hm * fc_std
+                weather_allowed_fuel = base_theoretical_fuel * rain_derating
+
+                fuel_variance_l = factual_fuel - weather_allowed_fuel
+                variance_pct = (fuel_variance_l / weather_allowed_fuel * 100.0) if weather_allowed_fuel > 0 else 0.0
+
+                total_factual_fuel_l += factual_fuel
+                total_weather_allowed_fuel_l += weather_allowed_fuel
+
+                # Anomaly Indication & Weather Causality Check
+                is_weather_induced = False
+                is_genuine_machine_anomaly = False
+                anomaly_status = "NORMAL_EFFICIENT"
+
+                if variance_pct > 18.0:  # Overshoot > 18%
+                    if rain_derating < 0.85:
+                        # Variance dipicu oleh hujan deras / terrain lumpur
+                        is_weather_induced = True
+                        anomaly_status = "WEATHER_INDUCED_OVER_CONSUMPTION"
+                    else:
+                        # Keborosan MURNI TIDAK DIPENGARUHI CUACA -> Sampel Training Anomali
+                        is_genuine_machine_anomaly = True
+                        anomaly_status = "NON_WEATHER_GENUINE_ANOMALY_TRAINING_SAMPLE"
+                        tagged_anomalies_count += 1
+
+                        if auto_tag_training_anomalies:
+                            # Tag/Save into UnitAnomalySpike as nn_anomaly_spike = 1 for training evaluation pool
+                            if spike_entry:
+                                spike_entry.nn_anomaly_spike = 1
+                                spike_entry.reconstruction_error = float(variance_pct / 100.0)
+                            else:
+                                new_spike = UnitAnomalySpike(
+                                    log_date=log_date,
+                                    unit_code=u_name,
+                                    activity=u_act,
+                                    equipment_id=eq.id,
+                                    fc_actual=actual_fc_lhr,
+                                    unit_fuel_day=factual_fuel,
+                                    unit_fr=factual_fuel / max(1.0, factual_payload),
+                                    nn_anomaly_spike=1,
+                                    reconstruction_error=float(variance_pct / 100.0)
+                                )
+                                db.add(new_spike)
+                elif variance_pct > 8.0:
+                    anomaly_status = "WARNING_MODERATE_OVER_CONSUMPTION"
+
+                unit_comparisons.append({
+                    "unit_name": u_name,
+                    "activity": u_act,
+                    "fleet_qty": u_qty,
+                    "std_fc_lhr": fc_std,
+                    "std_prod_bcmhr": prod_std,
+                    "factual_hm_operating_hours": round(factual_hm, 2),
+                    "factual_fuel_consumed_lday": round(factual_fuel, 2),
+                    "actual_fc_lhr": round(actual_fc_lhr, 2),
+                    "factual_payload_bcm": round(factual_payload, 2),
+                    "weather_allowed_fuel_lday": round(weather_allowed_fuel, 2),
+                    "fuel_variance_liters": round(fuel_variance_l, 2),
+                    "fuel_variance_pct": round(variance_pct, 2),
+                    "rain_derating_factor": round(rain_derating, 4),
+                    "is_weather_induced": is_weather_induced,
+                    "is_genuine_machine_anomaly": is_genuine_machine_anomaly,
+                    "tagged_for_training_anomaly": is_genuine_machine_anomaly and auto_tag_training_anomalies,
+                    "anomaly_status": anomaly_status
+                })
+
+            if auto_tag_training_anomalies and tagged_anomalies_count > 0:
+                try:
+                    db.commit()
+                except Exception as e:
+                    db.rollback()
+                    logger.warning(f"Gagal commit auto-tagging training anomalies: {e}")
+
+            overall_net_variance_l = total_factual_fuel_l - total_weather_allowed_fuel_l
+            overall_variance_pct = (overall_net_variance_l / total_weather_allowed_fuel_l * 100.0) if total_weather_allowed_fuel_l > 0 else 0.0
+
+            return {
+                "log_date": date_str,
+                "bmkg_weather_data": {
+                    "curah_hujan_mm": rain_mm,
+                    "temp_max_c": temp_c,
+                    "kecepatan_angin_kmh": wind_kmh,
+                    "rain_derating_factor": round(rain_derating, 4),
+                    "weather_condition": "RAIN_DERATING_ACTIVE" if rain_derating < 1.0 else "CLEAR_NORMAL"
+                },
+                "factual_capacity_summary": {
+                    "total_units_evaluated": len(unit_comparisons),
+                    "total_factual_fuel_lday": round(total_factual_fuel_l, 2),
+                    "total_weather_allowed_fuel_lday": round(total_weather_allowed_fuel_l, 2),
+                    "net_variance_liters": round(overall_net_variance_l, 2),
+                    "overall_variance_pct": round(overall_variance_pct, 2),
+                    "genuine_non_weather_anomalies_count": tagged_anomalies_count,
+                    "training_samples_tagged": tagged_anomalies_count if auto_tag_training_anomalies else 0
+                },
+                "unit_factual_comparisons": unit_comparisons
             }
 
         finally:

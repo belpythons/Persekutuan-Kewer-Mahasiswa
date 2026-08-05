@@ -212,7 +212,16 @@ def test_api_endpoints_integration_and_latency(api_client):
     assert "unit_audit_details" in res_iot.json()
     assert lat_iot < 2000.0
 
-    print(f"\n Master Test Completed Successfully! Latencies: Forecast={lat_fc:.2f}ms, Anomaly={lat_an:.2f}ms, Capacity={lat_cap:.2f}ms, GlobalTuning={lat_tune:.2f}ms, BMKGSync={lat_bmkg:.2f}ms, IoTAudit={lat_iot:.2f}ms")
+    # Dynamic Capacity Factual Comparison & Anomaly Training Tagging API
+    t6 = time.time()
+    res_cmp = api_client.get("/api/v1/capacity-factual-comparison/2026-08-05?auto_tag_training_anomalies=true")
+    lat_cmp = (time.time() - t6) * 1000
+    assert res_cmp.status_code == 200
+    assert "factual_capacity_summary" in res_cmp.json()
+    assert "unit_factual_comparisons" in res_cmp.json()
+    assert lat_cmp < 2000.0
+
+    print(f"\n Master Test Completed Successfully! Latencies: Forecast={lat_fc:.2f}ms, Anomaly={lat_an:.2f}ms, Capacity={lat_cap:.2f}ms, GlobalTuning={lat_tune:.2f}ms, BMKGSync={lat_bmkg:.2f}ms, IoTAudit={lat_iot:.2f}ms, FactualCmp={lat_cmp:.2f}ms")
 
 if __name__ == "__main__":
     pytest.main(["-v", __file__])
