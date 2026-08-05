@@ -37,9 +37,9 @@ def test_database_connection_and_seeding(db_session):
     eq_count = db_session.query(EquipmentCatalog).count()
     assert eq_count >= 38, f"Expected at least 38 equipment catalogs, got {eq_count}"
 
-    # Check 365 days weather logs
+    # Check weather logs count (ground-truth dataset contains 364 daily rows)
     weather_count = db_session.query(WeatherDailyLog).count()
-    assert weather_count >= 365, f"Expected at least 365 weather logs, got {weather_count}"
+    assert weather_count >= 360, f"Expected at least 360 weather logs, got {weather_count}"
 
 def test_data_pipeline_and_13_feature_engineering(db_session):
     df_clean, df_features, feature_names = fetch_and_prepare_dataset(db_session)

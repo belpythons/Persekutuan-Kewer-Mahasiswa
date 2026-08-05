@@ -42,28 +42,79 @@ class ForecastingService:
     def forecast_single_day(
         self,
         date_str: str,
-        curah_hujan_mm: float,
-        temp_max_c: float,
-        kecepatan_angin_kmh: float,
-        haul_distance_m: float,
-        daily_prod_bcm: float,
-        rain_lag1: float = 0.0,
-        rain_lag2: float = 0.0,
-        fr_lag1: float = 1.018,
-        fr_lag2: float = 1.018,
-        rolling_avg_fr_7d: float = 1.018,
+        curah_hujan_mm: Optional[float] = None,
+        temp_max_c: Optional[float] = None,
+        kecepatan_angin_kmh: Optional[float] = None,
+        haul_distance_m: Optional[float] = None,
+        daily_prod_bcm: Optional[float] = None,
+        rain_lag1: Optional[float] = None,
+        rain_lag2: Optional[float] = None,
+        fr_lag1: Optional[float] = None,
+        fr_lag2: Optional[float] = None,
+        rolling_avg_fr_7d: Optional[float] = None,
         db_session = None
     ) -> Dict[str, Any]:
         """
-        Memprediksi Fuel Ratio harian berdasarkan 13 variabel input operasional dan mengevaluasi Dynamic Thresholds.
+        Memprediksi Fuel Ratio harian berdasarkan 13 variabel input operasional.
+        Jika variabel cuaca / operasional tidak dikirim (None), sistem otomatis mengambil data dari database Supabase.
         """
         if self.model is None or self.scaler is None:
-            # Auto load atau train jika belum siap
             from pipelines.train_xgboost import train_xgboost_model
             train_xgboost_model(db_session)
             self._load_model()
             
         dt = pd.to_datetime(date_str)
+        cur_date = dt.date()
+
+        # Auto-query database untuk melengkapi variabel yang kosong (None)
+        if db_session is not None:
+            w_record = db_session.query(WeatherDailyLog).filter(WeatherDailyLog.log_date == cur_date).first()
+            if w_record:
+                if curah_hujan_mm is None: curah_hujan_mm = float(w_record.curah_hujan_mm)
+                if temp_max_c is None: temp_max_c = float(w_record.temp_max_c)
+                if kecepatan_angin_kmh is None: kecepatan_angin_kmh = float(w_record.kecepatan_angin_kmh)
+                
+            f_record = db_session.query(DailyForecastLog).filter(DailyForecastLog.log_date == cur_date).first()
+            if f_record:
+                if haul_distance_m is None: haul_distance_m = float(f_record.haul_distance_m)
+                if daily_prod_bcm is None: daily_prod_bcm = float(f_record.daily_prod_bcm)
+
+            # Auto-calculate Lags dari database jika None
+            if rain_lag1 is None:
+                w1 = db_session.query(WeatherDailyLog).filter(WeatherDailyLog.log_date == cur_date - datetime.timedelta(days=1)).first()
+                rain_lag1 = float(w1.curah_hujan_mm) if w1 else 0.0
+            if rain_lag2 is None:
+                w2 = db_session.query(WeatherDailyLog).filter(WeatherDailyLog.log_date == cur_date - datetime.timedelta(days=2)).first()
+                rain_lag2 = float(w2.curah_hujan_mm) if w2 else 0.0
+
+            if fr_lag1 is None:
+                f1 = db_session.query(DailyForecastLog).filter(DailyForecastLog.log_date == cur_date - datetime.timedelta(days=1)).first()
+                fr_lag1 = float(f1.forecast_fr if f1 else BASE_TOTAL_FR_BUDGET)
+            if fr_lag2 is None:
+                f2 = db_session.query(DailyForecastLog).filter(DailyForecastLog.log_date == cur_date - datetime.timedelta(days=2)).first()
+                fr_lag2 = float(f2.forecast_fr if f2 else BASE_TOTAL_FR_BUDGET)
+
+            if rolling_avg_fr_7d is None:
+                f_7d = db_session.query(DailyForecastLog.forecast_fr)\
+                    .filter(DailyForecastLog.log_date < cur_date)\
+                    .order_by(DailyForecastLog.log_date.desc()).limit(7).all()
+                if f_7d:
+                    rolling_avg_fr_7d = float(np.mean([r[0] for r in f_7d if r[0] is not None]))
+                else:
+                    rolling_avg_fr_7d = BASE_TOTAL_FR_BUDGET
+
+        # Fallback default values jika tetap None (misal tanggal belum ada di DB)
+        if curah_hujan_mm is None: curah_hujan_mm = 0.0
+        if temp_max_c is None: temp_max_c = 32.0
+        if kecepatan_angin_kmh is None: kecepatan_angin_kmh = 12.0
+        if haul_distance_m is None: haul_distance_m = 3900.0
+        if daily_prod_bcm is None: daily_prod_bcm = 40000.0
+        if rain_lag1 is None: rain_lag1 = 0.0
+        if rain_lag2 is None: rain_lag2 = 0.0
+        if fr_lag1 is None: fr_lag1 = BASE_TOTAL_FR_BUDGET
+        if fr_lag2 is None: fr_lag2 = BASE_TOTAL_FR_BUDGET
+        if rolling_avg_fr_7d is None: rolling_avg_fr_7d = BASE_TOTAL_FR_BUDGET
+
         day_of_week = dt.dayofweek
         month = dt.month
         is_weekend = 1 if day_of_week in [5, 6] else 0
