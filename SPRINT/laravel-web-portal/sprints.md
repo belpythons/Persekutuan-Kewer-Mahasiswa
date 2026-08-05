@@ -126,27 +126,14 @@ Dokumen ini berisi panduan implementasi teknis mendetail per sprint untuk sub-pr
 
 ---
 
-### 📌 Sprint 11: Direct Relational DB Chatbot Engine & Whitelist Guard (Solusi Celah #2)
-- **ATURAN KEAMANAN MUTLAK:** DILARANG menggunakan `DB::raw()` atau `PDO::query()` pada chatbot.
+### 📌 Sprint 11: Gemini AI Chatbot SSE Streaming Endpoint & System Prompt
+- **ATURAN ARSITEKTUR:** Stateless & Ephemeral (tanpa I/O database percakapan). Riwayat pesan dikirimkan oleh Vue 3 frontend (maksimal 10 pesan terakhir).
 - **Langkah Pengerjaan:**
-  1. Buat Whitelist Guard `App\Security\QueryWhitelistGuard.php`:
-     ```php
-     namespace App\Security;
-
-     class QueryWhitelistGuard {
-         private const ALLOWED_TABLES = [
-             'equipment_catalogs', 'daily_forecast_logs',
-             'unit_anomaly_spikes', 'capacity_allocations', 'weather_daily_logs'
-         ];
-         public static function validateTable(string $tableName): void {
-             if (!in_array($tableName, self::ALLOWED_TABLES)) {
-                 throw new \InvalidArgumentException("Akses ke tabel '{$tableName}' ditolak demi keamanan.");
-             }
-         }
-     }
-     ```
-  2. Konfigurasi koneksi database read-only `config/database.php` (`chatbot_readonly`).
-  3. Buat Service `App\Services\ChatbotService.php` yang memanggil OpenAI GPT-4o dengan Structured Function Calling.
+  1. Konfigurasi `config/ai.php` dan environment variables (`GEMINI_API_KEY`, `GEMINI_MODEL`).
+  2. Buat `App\Services\ChatbotSystemPrompt.php` yang berisi seluruh pengetahuan domain ML KIDECO (XGBoost forecasting, PyTorch Autoencoder anomalies, Rain Derating, Alert Thresholds).
+  3. Buat `App\Http\Controllers\Api\ChatbotController.php` dengan method `stream(Request $request)` yang mengembalikan `StreamedResponse` (`Content-Type: text/event-stream`, `X-Accel-Buffering: no`).
+  4. Daftarkan route `POST /api/v1/chatbot/stream` di `routes/api.php`.
+  5. Sediakan panduan integrasi SSE untuk frontend Vue 3 di `chatbot-sse-integration-spec.md`.
 
 ---
 

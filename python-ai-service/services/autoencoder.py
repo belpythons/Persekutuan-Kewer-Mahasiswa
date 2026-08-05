@@ -39,8 +39,7 @@ class PyTorchAutoencoder(nn.Module):
             nn.ReLU(),
             nn.Linear(16, 8),
             nn.ReLU(),
-            nn.Linear(8, 3),
-            nn.ReLU()
+            nn.Linear(8, 3)
         )
         self.decoder = nn.Sequential(
             nn.Linear(3, 8),
@@ -146,7 +145,7 @@ class AutoencoderAnomalyService:
                 
             median_err = float(np.median(errors_normal))
             mad_err = float(np.median(np.abs(errors_normal - median_err)))
-            self.global_threshold = max(float(np.percentile(errors_normal, 99.5)), float(median_err + 5.0 * 1.4826 * mad_err))
+            self.global_threshold = max(0.05, float(median_err + 8.0 * 1.4826 * mad_err))
             
             # Per-Activity Adaptive Thresholds
             df_normal['Recon_Error'] = errors_normal
@@ -154,9 +153,9 @@ class AutoencoderAnomalyService:
             for act in df_normal['Activity'].unique():
                 act_errs = df_normal[df_normal['Activity'] == act]['Recon_Error'].values
                 if len(act_errs) > 10:
-                    med_a = np.median(act_errs)
-                    mad_a = np.median(np.abs(act_errs - med_a))
-                    self.activity_thresholds[act] = max(float(np.percentile(act_errs, 99.5)), float(med_a + 5.0 * 1.4826 * mad_a))
+                    med_a = float(np.median(act_errs))
+                    mad_a = float(np.median(np.abs(act_errs - med_a)))
+                    self.activity_thresholds[act] = max(0.05, float(med_a + 8.0 * 1.4826 * mad_a))
                 else:
                     self.activity_thresholds[act] = self.global_threshold
 
@@ -233,18 +232,53 @@ class AutoencoderAnomalyService:
             
         df_records = pd.DataFrame(records)
         
-        # Calculate FC_Ratio, Unit_FR_Ratio, Unit_Fuel_Ratio if not provided
+        # Build catalog lookup map for baseline fuel consumption
+        cat_map = {}
+        if db_session is not None:
+            try:
+                catalogs = db_session.query(EquipmentCatalog).all()
+                for c in catalogs:
+                    cat_map[c.unit_name] = c.fc_lhr
+                    clean = c.unit_name.replace(" ", "").replace("-", "").lower()
+                    cat_map[clean] = c.fc_lhr
+            except Exception:
+                pass
+
+        def get_fc_base(row):
+            u = str(row['Unit'])
+            clean_u = u.replace(" ", "").replace("-", "").lower()
+            if u in cat_map:
+                return cat_map[u]
+            if clean_u in cat_map:
+                return cat_map[clean_u]
+            for k, v in cat_map.items():
+                if k in clean_u or clean_u in k:
+                    return v
+            if "EX2600" in u.upper() or "HT 2600" in u.upper() or "3400" in u:
+                return 190.0
+            elif "2000" in u:
+                return 125.0
+            elif "1250" in u:
+                return 93.33
+            elif "HD785" in u.upper() or "HAUL" in str(row.get('Activity', '')).upper():
+                return 75.0
+            elif "DOZER" in u.upper() or "375" in u:
+                return 65.75
+            elif "DRILL" in u.upper():
+                return 40.0
+            elif "PUMP" in u.upper() or "DRAGFLOW" in u.upper():
+                return 45.0
+            return float(row['FC_Actual'])
+
         if 'FC_Ratio' not in df_records.columns:
             if 'FC_Base' in df_records.columns and (df_records['FC_Base'] > 0).all():
                 df_records['FC_Ratio'] = df_records['FC_Actual'] / df_records['FC_Base']
             else:
-                df_records['FC_Ratio'] = df_records['FC_Actual'] / df_records['FC_Actual'].mean()
-                
-        if 'Unit_FR_Ratio' not in df_records.columns:
-            df_records['Unit_FR_Ratio'] = df_records['Unit_FR'] / df_records['Unit_FR'].mean()
-            
-        if 'Unit_Fuel_Ratio' not in df_records.columns:
-            df_records['Unit_Fuel_Ratio'] = df_records['Unit_Fuel_L_Day'] / df_records['Unit_Fuel_L_Day'].mean()
+                fc_bases = df_records.apply(get_fc_base, axis=1)
+                df_records['FC_Ratio'] = df_records['FC_Actual'] / fc_bases.replace(0, 1.0)
+
+        df_records['Unit_FR_Ratio'] = df_records['FC_Ratio']
+        df_records['Unit_Fuel_Ratio'] = df_records['FC_Ratio']
                 
         # Susun fitur AE
         X_input = df_records[AE_FEATURE_COLUMNS].values

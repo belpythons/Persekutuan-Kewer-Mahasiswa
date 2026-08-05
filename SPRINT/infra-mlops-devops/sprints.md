@@ -1,134 +1,53 @@
-# Infra & MLOps DevOps — Dekomposisi Sprint 1 hingga Sprint 18
+# Infra, MLOps, & DevOps — Dekomposisi Sprint & Task Master Plan
 
-Dokumen ini berisi panduan implementasi teknis mendetail per sprint untuk sub-proyek **`infra-mlops-devops/`** (Docker, PostgreSQL, Redis, CI/CD, Security, Grafana & MLOps) berdasarkan acuan `implementation_plan.md` dan `prd.md`.
-
----
-
-## 📅 Matriks Ringkasan Sprint `infra-mlops-devops/`
-
-| Sprint | Judul / Fokus Utama | Output / Deliverable | Target Celah |
-|:-------|:-------------------|:---------------------|:-------------|
-| **Sprint 1** | Docker Compose & Local Stack | `docker-compose.yml` (Postgres, Redis, PHP, Python) | Local Environment |
-| **Sprint 11**| Read-Only Chatbot Role | User PostgreSQL `chatbot_reader` (SELECT-only) | #2 (SQL Injection) |
-| **Sprint 13**| Security & CORS/SSL Setup | Nginx SSL Config, CORS, CSP Headers | Security Hardening |
-| **Sprint 14**| Automated CI/CD Pipeline | GitHub Actions Workflow (`ci.yml`) | Automated Testing |
-| **Sprint 16**| Production Multi-Stage Deployment | Production Server Setup & Docker Multi-stage | Prod Infrastructure |
-| **Sprint 17**| MLOps Monitoring & Alerting | Prometheus + Grafana Stack & Data Drift Alert | #3 (Retraining MLOps) |
+Dokumen ini berisi panduan dan master plan eksekusi tugas teknis terperinci untuk modul **Infrastructure, MLOps, dan DevOps** pada sistem **KIDECO Fuel Ratio Optimization System** (Laravel Web Portal, Vue 3 Frontend, & Python AI Service).
 
 ---
 
-## 🛠️ Detil Instruksi Pengerjaan Per Sprint
+## 📌 1. Sprint Overview
 
-### 📌 Sprint 1: Docker Compose Environment
-**Folder Target:** `infra-mlops-devops/`
-- **Langkah Pengerjaan:**
-  1. Buat file `docker-compose.yml`:
-     ```yaml
-     version: '3.8'
-     services:
-       postgres:
-         image: postgres:16-alpine
-         environment:
-           POSTGRES_DB: kideco_fuel_ratio
-           POSTGRES_USER: kideco_user
-           POSTGRES_PASSWORD: kideco_secret
-         ports:
-           - "5432:5432"
-         volumes:
-           - pgdata:/var/lib/postgresql/data
-
-       redis:
-         image: redis:7-alpine
-         ports:
-           - "6379:6379"
-
-       laravel-app:
-         build:
-           context: ../laravel-web-portal
-         ports:
-           - "8000:8000"
-         depends_on:
-           - postgres
-           - redis
-
-       python-ai:
-         build:
-           context: ../python-ai-service
-         ports:
-           - "8001:8000"
-         depends_on:
-           - postgres
-
-     volumes:
-       pgdata:
-     ```
+Sub-proyek **`infra-mlops-devops/`** bertanggung jawab mengamankan, mengotomatisasi, dan menyediakan infrastruktur yang andal, scalable, serta ter-monitor untuk seluruh ekosistem aplikasi. Sub-proyek ini memastikan konsistensi lingkungan pengembangan lokal hingga produksi, otomatisasi validasi kode (CI/CD), keamanan data berbasis aturan akses ketat, serta pengawasan kesehatan model AI (PyTorch Autoencoder & XGBoost) dari potensi *Data Drift*.
 
 ---
 
-### 📌 Sprint 11: Dedicated Read-Only Chatbot Role (Solusi Celah #2)
-- **Langkah Pengerjaan:**
-  1. Buat SQL Seeder Script `init-chatbot-read-only.sql`:
-     ```sql
-     -- Buat role khusus chatbot read-only
-     CREATE USER chatbot_reader WITH PASSWORD 'read_only_secret';
-     GRANT CONNECT ON DATABASE kideco_fuel_ratio TO chatbot_reader;
-     GRANT USAGE ON SCHEMA public TO chatbot_reader;
-     
-     -- Hanya izinkan SELECT pada tabel-tabel aman
-     GRANT SELECT ON equipment_catalogs, daily_forecast_logs, unit_anomaly_spikes, capacity_allocations, weather_daily_logs TO chatbot_reader;
-     
-     -- TEGAS: Revoke privileges modifikasi
-     REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON ALL TABLES IN SCHEMA public FROM chatbot_reader;
-     ```
+## 🎯 2. Sprint Goals & Key Milestones
+
+1. **Dockerization & Environment Harmonization**: Menyediakan arsitektur *multi-container* lokal yang identik dengan lingkungan produksi (PostgreSQL 16, Redis 7, Laravel PHP 8.2, Python 3.11/3.13 AI Service).
+2. **Security Hardening & Read-Only Access Control**: Mengeliminasi celah SQL Injection pada AI Chatbot Retrieval dengan user database terpisah (`chatbot_reader`) serta menerapkan kebijakan HTTPS/Nginx SSL & CORS/CSP.
+3. **Automated Continuous Integration (CI/CD)**: Membangun pipeline otomatisasi pengujian berbasis GitHub Actions yang menjalankan PHPUnit test suite pada Laravel Portal dan PyTest suite pada Python AI Service.
+4. **Production Multi-Stage Build & Deployment**: Meminimalkan ukuran image container dan mengamankan eksekusi aplikasi menggunakan pengguna non-root dalam kontainer produksi multi-stage.
+5. **MLOps Model Drift Alerting & Observability**: Mengintegrasikan Prometheus + Grafana untuk melacak latensi inferensi FastAPI (<2.0 detik), statistik deteksi anomali unit, serta mendeteksi *Data Drift* secara otomatis menggunakan Kolmogorov-Smirnov Test.
 
 ---
 
-### 📌 Sprint 14: GitHub Actions CI/CD Pipeline
-- **Langkah Pengerjaan:**
-  1. Buat Workflow File `.github/workflows/ci.yml`:
-     ```yaml
-     name: CI/CD Pipeline
+## 📑 3. Task Index Table
 
-     on:
-       push:
-         branches: [ main, develop ]
-       pull_request:
-         branches: [ main ]
-
-     jobs:
-       test-laravel:
-         runs-on: ubuntu-latest
-         steps:
-           - uses: actions/checkout@v3
-           - name: Setup PHP
-             uses: shivammathur/setup-php@v2
-             with:
-               php-version: '8.2'
-           - name: Run PHPUnit Tests
-             run: |
-               cd laravel-web-portal
-               composer install
-               php artisan test
-
-       test-python-ai:
-         runs-on: ubuntu-latest
-         steps:
-           - uses: actions/checkout@v3
-           - name: Setup Python
-             uses: actions/setup-python@v4
-             with:
-               python-version: '3.11'
-           - name: Run PyTest
-             run: |
-               cd python-ai-service
-               pip install -r requirements.txt
-               pytest
-     ```
+| Task ID | Judul / Fokus Utama | Modul | Assignee / Role | Target File Utama |
+|:---|:---|:---|:---|:---|
+| **TASK-01** | Docker Compose Local Multi-Container Environment | Infrastructure | DevOps Engineer | `docker-compose.yml`, `.env.example` |
+| **TASK-02** | Dedicated Read-Only PostgreSQL Role (`chatbot_reader`) | Security / DB | Database Administrator | `init-chatbot-read-only.sql` |
+| **TASK-03** | Nginx Reverse Proxy, SSL Termination & CORS/CSP Hardening | Infrastructure / Security | DevOps Engineer | `nginx/conf.d/app.conf`, `security.conf` |
+| **TASK-04** | Automated GitHub Actions CI/CD Testing Pipeline | DevOps | CI/CD Engineer | `.github/workflows/ci.yml` |
+| **TASK-05** | Production Multi-Stage Containerization & Hardening | Infrastructure | DevOps Engineer | `Dockerfile.laravel`, `Dockerfile.ai` |
+| **TASK-06** | MLOps Metrics Scraping, Prometheus, Grafana & Drift Alerting | MLOps | MLOps Engineer | `docker-compose.monitoring.yml`, `prometheus.yml` |
 
 ---
 
-### 📌 Sprint 17: MLOps Prometheus & Grafana Monitoring (Solusi Celah #3)
-- **Langkah Pengerjaan:**
-  1. Buat `docker-compose.monitoring.yml` memasang Prometheus + Grafana.
-  2. Dapatkan metric latensi inferensi FastAPI dan R² model harian.
-  3. Konfigurasi Alertmanager Grafana jika data drift terdeteksi atau R² model turun di bawah 0.70.
+## 🔗 4. List of Tasks Reference & Workflow Dependency
+
+```mermaid
+flowchart TD
+    TASK01["TASK-01: Docker Compose Local Stack"] --> TASK02["TASK-02: Read-Only Chatbot Role"]
+    TASK01 --> TASK04["TASK-04: GitHub Actions CI/CD"]
+    TASK02 --> TASK03["TASK-03: Nginx SSL & CORS Security"]
+    TASK04 --> TASK05["TASK-05: Multi-Stage Prod Container"]
+    TASK03 --> TASK05
+    TASK05 --> TASK06["TASK-06: MLOps Prometheus & Drift Alert"]
+```
+
+1. **TASK-01 (Docker Stack)** menjadi fondasi utama tempat seluruh pengujian lokal, koneksi database PostgreSQL, dan Redis bergantung.
+2. **TASK-02 (Read-Only Role)** dijalankan langsung di atas container PostgreSQL untuk mengamankan Chatbot AI Engine dari akses modifikasi data (Celah #2).
+3. **TASK-03 (Nginx & Security)** meng-expose Laravel Portal & Python AI Engine di balik Nginx Reverse Proxy dengan TLS/SSL dan CORS restriction.
+4. **TASK-04 (CI/CD Pipeline)** secara otomatis mengeksekusi suite pengujian (PHPUnit & PyTest) di setiap Push/PR ke repository branch `main` & `develop`.
+5. **TASK-05 (Production Container)** menyusun image produksi yang ringan dan aman untuk siap di-deploy ke server staging/production.
+6. **TASK-06 (MLOps & Drift Alerting)** memantau performa inferensi PyTorch Autoencoder & XGBoost Regressor di lingkungan runtime dan memberikan peringatan dini (*alerting*) saat distribusi data bergeser (*data drift*).
