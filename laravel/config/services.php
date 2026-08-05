@@ -35,4 +35,10 @@ return [
         ],
     ],
 
+    'ai_service' => [
+        'base_url' => env('AI_SERVICE_BASE_URL', 'http://localhost:8001'),
+        'timeout'  => env('AI_SERVICE_TIMEOUT_SECONDS', 5),
+        'retry'    => env('AI_SERVICE_RETRY_TIMES', 3),
+    ],
+
 ];

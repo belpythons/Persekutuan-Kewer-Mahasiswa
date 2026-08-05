@@ -9,28 +9,20 @@ export const routes = [
         component: () => import('@/pages/dashboard.vue'),
       },
       {
+        path: 'production-capacity',
+        component: () => import('@/pages/production-capacity.vue'),
+      },
+      {
+        path: 'support-weather-mlops',
+        component: () => import('@/pages/support-weather-mlops.vue'),
+      },
+      {
+        path: 'forecasting-ai',
+        component: () => import('@/pages/forecasting-ai.vue'),
+      },
+      {
         path: 'account-settings',
         component: () => import('@/pages/account-settings.vue'),
-      },
-      {
-        path: 'typography',
-        component: () => import('@/pages/typography.vue'),
-      },
-      {
-        path: 'icons',
-        component: () => import('@/pages/icons.vue'),
-      },
-      {
-        path: 'cards',
-        component: () => import('@/pages/cards.vue'),
-      },
-      {
-        path: 'tables',
-        component: () => import('@/pages/tables.vue'),
-      },
-      {
-        path: 'form-layouts',
-        component: () => import('@/pages/form-layouts.vue'),
       },
     ],
   },
