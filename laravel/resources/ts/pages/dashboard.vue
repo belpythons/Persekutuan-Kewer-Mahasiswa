@@ -72,9 +72,9 @@ onMounted(async () => {
     </div>
 
     <!-- MAIN GRID - 100% Dynamic API Powered -->
-    <VRow>
+    <VRow class="match-height">
       <!-- ZONE 0: REAL-TIME WEATHER RADAR CARD -->
-      <VCol cols="12" class="mb-2">
+      <VCol cols="12" class="mb-1">
         <OpenMeteoWeatherCard />
       </VCol>
 
@@ -112,7 +112,7 @@ onMounted(async () => {
       </VCol>
 
       <!-- LEADERBOARD TABLE -->
-      <VCol cols="12" class="mt-2">
+      <VCol cols="12" class="mt-1">
         <TopAnomalousLeaderboard
           :spike-report="anomalyData?.spike_report_per_unit ?? null"
           :is-loading="isLoading"

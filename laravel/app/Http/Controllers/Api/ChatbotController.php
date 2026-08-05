@@ -3,33 +3,42 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Services\GeminiChatbotService;
+use App\Services\FuelRatioAiClient;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Symfony\Component\HttpFoundation\StreamedResponse;
+use Exception;
 
 class ChatbotController extends Controller
 {
-    protected GeminiChatbotService $chatbotService;
-
-    public function __construct(GeminiChatbotService $chatbotService)
-    {
-        $this->chatbotService = $chatbotService;
-    }
+    public function __construct(
+        protected FuelRatioAiClient $aiClient
+    ) {}
 
     /**
-     * Endpoint SSE Streaming untuk Gemini AI Chatbot.
-     * POST /api/v1/chatbot/stream
+     * POST /api/v1/chatbot/query
+     * Proxy ke AI service Mining Fuel Chatbot endpoint
      */
-    public function stream(Request $request): StreamedResponse
+    public function query(Request $request): JsonResponse
     {
-        // 1. Validasi Input Request Payload
         $validated = $request->validate([
-            'messages' => 'required|array|min:1',
-            'messages.*.role' => 'required|string|in:user,model,assistant,system',
-            'messages.*.content' => 'required|string',
+            'query' => 'required|string|min:1',
+            'history' => 'nullable|array',
         ]);
 
-        // 2. Delegasikan seluruh proses pemformatan & streaming ke GeminiChatbotService
-        return $this->chatbotService->streamChat($validated['messages']);
+        try {
+            $result = $this->aiClient->queryChatbot(
+                $validated['query'],
+                $validated['history'] ?? []
+            );
+
+            return response()->json($result);
+        } catch (Exception $e) {
+            return response()->json([
+                'error' => 'AI Service Chatbot tidak tersedia',
+                'message' => $e->getMessage(),
+                'response' => "Maaf, sistem AI Chatbot sedang offline. Silakan coba beberapa saat lagi.",
+                'fallback' => true,
+            ], 503);
+        }
     }
 }

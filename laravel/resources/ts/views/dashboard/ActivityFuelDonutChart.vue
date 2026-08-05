@@ -40,10 +40,10 @@ const chartOptions = computed(() => {
       type: 'donut' as const,
     },
     labels: chartLabels.value,
-    colors: ['#1A73E8', '#F9AB00', '#34A853', '#7B61FF'],
+    colors: ['#1A73E8', '#34A853', '#F9AB00', '#7B61FF'],
     legend: {
       position: 'bottom' as const,
-      fontSize: '13px',
+      fontSize: '12px',
       labels: { colors: primaryTextColor },
     },
     plotOptions: {
@@ -52,12 +52,12 @@ const chartOptions = computed(() => {
           size: '65%',
           labels: {
             show: true,
-            name: { show: true, fontSize: '14px' },
-            value: { show: true, fontSize: '20px', fontWeight: 700 },
+            name: { show: true, fontSize: '12px' },
+            value: { show: true, fontSize: '18px', fontWeight: 700 },
             total: {
               show: true,
               label: 'Total Fuel',
-              fontSize: '14px',
+              fontSize: '12px',
               formatter: () => `${totalFuelDisplay.value} L`,
             },
           },
@@ -65,8 +65,7 @@ const chartOptions = computed(() => {
       },
     },
     dataLabels: {
-      enabled: true,
-      formatter: (val: number) => `${val.toFixed(1)}%`,
+      enabled: false,
     },
     tooltip: {
       y: { formatter: (v: number) => `${v.toLocaleString('id-ID')} L/hari` },
@@ -76,38 +75,50 @@ const chartOptions = computed(() => {
 </script>
 
 <template>
-  <VCard>
+  <VCard class="border d-flex flex-column h-100">
     <VCardItem>
-      <VCardTitle>Distribusi Konsumsi Solar per Aktivitas</VCardTitle>
-      <VCardSubtitle>
-        Alokasi BBM Harian {{ totalFuelDisplay }} Liter
+      <template #prepend>
+        <VAvatar
+          color="info"
+          variant="tonal"
+          size="44"
+          rounded
+        >
+          <VIcon
+            icon="bx-pie-chart-alt-2"
+            size="24"
+          />
+        </VAvatar>
+      </template>
+      <VCardTitle class="text-body-1 font-weight-bold">
+        Distribusi Solar per Aktivitas
+      </VCardTitle>
+      <VCardSubtitle class="text-caption d-flex align-center gap-1">
+        <span>Alokasi BBM Harian {{ totalFuelDisplay }} Liter</span>
         <VChip
           v-if="activityBreakdown"
           color="success"
           size="x-small"
           variant="tonal"
-          class="ms-2"
+          class="font-weight-bold"
         >
           Live
         </VChip>
       </VCardSubtitle>
     </VCardItem>
-    <VCardText>
-      <div v-if="chartSeries.length === 0" class="d-flex flex-column align-center justify-center py-8 text-medium-emphasis">
-        <VIcon icon="bx-pie-chart-alt-2" size="40" class="mb-2 opacity-50" />
-        <span>Tidak ada data alokasi BBM aktivitas</span>
+
+    <VCardText class="flex-grow-1 d-flex flex-column justify-center pa-2">
+      <div v-if="chartSeries.length === 0" class="d-flex flex-column align-center justify-center py-6 text-medium-emphasis">
+        <VIcon icon="bx-pie-chart-alt-2" size="36" class="mb-2 opacity-50" />
+        <span class="text-caption">Tidak ada data alokasi BBM aktivitas</span>
       </div>
       <VueApexCharts
         v-else
         type="donut"
-        :height="340"
+        height="220"
         :options="chartOptions"
         :series="chartSeries"
       />
     </VCardText>
   </VCard>
 </template>
-
-<style lang="scss">
-@use "@core-scss/template/libs/apex-chart.scss";
-</style>

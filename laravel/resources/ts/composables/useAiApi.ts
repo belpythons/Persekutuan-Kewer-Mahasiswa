@@ -158,6 +158,72 @@ export interface CapacityResponse {
   error?: string
 }
 
+export interface UnitTuningComparison {
+  unit_name: string
+  activity: string
+  fleet_qty: number
+  std_fc_lhr: number
+  tuned_fuel_allocation_lday: number
+  actual_fuel_consumed_lday: number
+  variance_liters: number
+  variance_pct: number
+  spike_anomaly_count: number
+  tuning_status: 'EFFICIENT' | 'WARNING' | 'OVER_CONSUMPTION'
+}
+
+export interface GlobalCapacityTuningResponse {
+  log_date: string
+  tuning_parameters: {
+    forecast_prod_bcm: number
+    curah_hujan_mm: number
+    rain_derating_factor: number
+    operating_hours_per_day: number
+  }
+  global_capacity_summary: {
+    installed_cap_bcmhr: number
+    effective_cap_bcmday: number
+    fleet_utilization_pct: number
+    total_fleet_units: number
+    required_operating_units: number
+    standby_units: number
+  }
+  global_fuel_tuning_summary: {
+    tuned_combined_fuel_lday: number
+    actual_total_fuel_lday: number
+    net_fuel_variance_lday: number
+    overall_variance_pct: number
+    global_tuning_status: 'OPTIMAL' | 'WARNING' | 'CRITICAL'
+  }
+  unit_tuning_comparison: UnitTuningComparison[]
+  fallback?: boolean
+}
+
+export interface BmkgWeatherSyncItem {
+  date: string
+  curah_hujan_mm: number
+  temp_max_c: number
+  kecepatan_angin_kmh: number
+  source: string
+}
+
+export interface BmkgWeatherSyncResponse {
+  status: string
+  source: string
+  location: string
+  records_synced: number
+  data: BmkgWeatherSyncItem[]
+  fallback?: boolean
+}
+
+export interface ChatbotQueryResponse {
+  query: string
+  response: string
+  source: string
+  db_context?: Record<string, any>
+  fallback?: boolean
+  error?: string
+}
+
 export interface WarmupDetails {
   status: string
   warmup_duration_ms?: number
@@ -250,6 +316,27 @@ export function useAiApi() {
   }
 
   /**
+   * POST /api/v1/global-capacity-tuning — Global Fleet Capacity Tuning & Variance Analysis (324 units)
+   */
+  async function fetchGlobalCapacityTuning(payload?: { date?: string; forecast_prod_bcm?: number; curah_hujan_mm?: number }): Promise<GlobalCapacityTuningResponse> {
+    return apiRequest<GlobalCapacityTuningResponse>('POST', '/api/v1/global-capacity-tuning', payload || {})
+  }
+
+  /**
+   * POST /api/v1/weather/sync-bmkg — Synchronize BMKG real-time weather
+   */
+  async function fetchSyncBmkgWeather(): Promise<BmkgWeatherSyncResponse> {
+    return apiRequest<BmkgWeatherSyncResponse>('POST', '/api/v1/weather/sync-bmkg')
+  }
+
+  /**
+   * POST /api/v1/chatbot/query — Mining Fuel AI Chatbot Assistant query
+   */
+  async function fetchChatbotQuery(query: string, history?: any[]): Promise<ChatbotQueryResponse> {
+    return apiRequest<ChatbotQueryResponse>('POST', '/api/v1/chatbot/query', { query, history: history || [] })
+  }
+
+  /**
    * GET /api/v1/ai-health — Health check microservice
    */
   async function fetchAiHealth(): Promise<HealthResponse> {
@@ -269,7 +356,12 @@ export function useAiApi() {
     fetchForecastHistory,
     fetchAnomalyDetect,
     fetchCalculateCapacity,
+    fetchGlobalCapacityTuning,
+    fetchSyncBmkgWeather,
+    fetchChatbotQuery,
     fetchAiHealth,
     fetchAiReady,
   }
 }
+
+

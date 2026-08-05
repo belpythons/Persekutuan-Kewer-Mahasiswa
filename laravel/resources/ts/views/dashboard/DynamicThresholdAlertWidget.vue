@@ -28,11 +28,11 @@ const status = computed(() => {
 const statusConfig = computed(() => {
   switch (status.value) {
     case 'CRITICAL':
-      return { bg: '#FCE8E6', color: '#C5221F', icon: 'bx-error-circle', label: 'CRITICAL (+18%)' }
+      return { color: 'error', icon: 'bx-error-circle', label: 'CRITICAL (+18%)' }
     case 'WARNING':
-      return { bg: '#FEF7E0', color: '#B06000', icon: 'bx-error', label: 'WARNING (+8%)' }
+      return { color: 'warning', icon: 'bx-error', label: 'WARNING (+8%)' }
     default:
-      return { bg: '#E6F4EA', color: '#137333', icon: 'bx-check-circle', label: 'NORMAL' }
+      return { color: 'success', icon: 'bx-check-circle', label: 'NORMAL' }
   }
 })
 
@@ -42,27 +42,25 @@ const deviationPct = computed(() => {
 </script>
 
 <template>
-  <VCard
-    :style="{ borderLeft: `6px solid ${statusConfig.color}`, backgroundColor: statusConfig.bg }"
-  >
+  <VCard class="border">
     <VCardItem>
       <template #prepend>
         <VAvatar
           :color="statusConfig.color"
           variant="tonal"
-          size="48"
+          size="44"
           rounded
         >
           <VIcon
             :icon="statusConfig.icon"
-            size="28"
+            size="24"
           />
         </VAvatar>
       </template>
-      <VCardTitle class="text-body-1 font-weight-medium">
+      <VCardTitle class="text-body-1 font-weight-bold">
         Fuel Ratio Status Hari Ini
       </VCardTitle>
-      <VCardSubtitle>Dynamic Threshold Alert</VCardSubtitle>
+      <VCardSubtitle class="text-caption">Dynamic Threshold Alert</VCardSubtitle>
     </VCardItem>
 
     <VCardText>
@@ -72,19 +70,19 @@ const deviationPct = computed(() => {
       <template v-else>
         <div class="d-flex align-center gap-4 mb-3">
           <div>
-            <span class="text-body-2 text-medium-emphasis">Current FR</span>
+            <span class="text-caption text-medium-emphasis">Current FR</span>
             <h3
               class="text-h3 font-weight-bold"
-              :style="{ color: statusConfig.color }"
+              :class="`text-${statusConfig.color}`"
             >
               {{ props.actualFr.toFixed(4) }}
             </h3>
-            <span class="text-body-2 text-medium-emphasis">L/BCM</span>
+            <span class="text-caption text-medium-emphasis">L/BCM</span>
           </div>
           <VSpacer />
           <VChip
-            :color="status === 'CRITICAL' ? 'error' : status === 'WARNING' ? 'warning' : 'success'"
-            variant="elevated"
+            :color="statusConfig.color"
+            variant="tonal"
             size="large"
             class="font-weight-bold"
           >
@@ -98,16 +96,16 @@ const deviationPct = computed(() => {
 
         <VDivider class="mb-3" />
 
-        <div class="d-flex justify-space-between text-body-2">
+        <div class="d-flex justify-space-between text-caption flex-wrap gap-2">
           <div>
             <span class="text-medium-emphasis">Budget Baseline:</span>
-            <strong class="ms-1">{{ props.budgetBaseline.toFixed(4) }} L/BCM</strong>
+            <strong class="ms-1 text-high-emphasis">{{ props.budgetBaseline.toFixed(4) }} L/BCM</strong>
           </div>
           <div>
             <span class="text-medium-emphasis">Deviasi:</span>
             <strong
               class="ms-1"
-              :style="{ color: statusConfig.color }"
+              :class="`text-${statusConfig.color}`"
             >{{ Number(deviationPct) > 0 ? '+' : '' }}{{ deviationPct }}%</strong>
           </div>
           <div>

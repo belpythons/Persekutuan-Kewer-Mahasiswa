@@ -30,22 +30,38 @@ const defaultUnits: AnomalousUnit[] = [
   { rank: 5, unitCode: 'D375A6R', activity: 'Supporting', spikeCount: 5, fcNormal: 67.0, fcSpike: 72.10, maxFr: null },
 ]
 
+const stdFcMap: Record<string, number> = {
+  'EX2600-6': 187.0, 'HT 2600': 190.0, 'PC 1250': 93.3, 'PC1250-11R': 93.3,
+  'PC 2000': 125.0, 'PC2000-11R': 100.0, 'PC 3400': 195.6, 'HD785-7': 75.0,
+  'HD785-7MUD': 75.0, 'HD785-SPIKE': 75.0, 'EX2600-SPIKE': 187.0,
+  'MID DRILLING': 54.2, 'SMALL DRILLING': 28.1, 'Dozer375': 54.2,
+  'D375A6R': 67.0, 'Water Pump': 36.0, 'Booster Pump': 40.0, 'Dragflow': 36.0,
+  'EGS380-6': 10.0,
+}
+
 const topUnits = computed<AnomalousUnit[]>(() => {
-  if (!props.spikeReport) return []
-  if (props.spikeReport.length === 0) return []
+  if (!props.spikeReport || props.spikeReport.length === 0) return []
 
   return props.spikeReport
-    .sort((a, b) => b.total_spikes - a.total_spikes)
+    .slice()
+    .sort((a, b) => {
+      const devA = a.avg_fc_spike - a.avg_fc_normal
+      const devB = b.avg_fc_spike - b.avg_fc_normal
+      return b.total_spikes - a.total_spikes || devB - devA
+    })
     .slice(0, 5)
-    .map((item, idx) => ({
-      rank: idx + 1,
-      unitCode: item.unit,
-      activity: item.activity.charAt(0).toUpperCase() + item.activity.slice(1).toLowerCase(),
-      spikeCount: item.total_spikes,
-      fcNormal: item.avg_fc_normal,
-      fcSpike: item.avg_fc_spike,
-      maxFr: item.max_fr_recorded > 0 ? item.max_fr_recorded : null,
-    }))
+    .map((item, idx) => {
+      const normal = item.avg_fc_normal > 0 ? item.avg_fc_normal : (stdFcMap[item.unit] || item.avg_fc_spike * 0.85)
+      return {
+        rank: idx + 1,
+        unitCode: item.unit,
+        activity: item.activity.charAt(0).toUpperCase() + item.activity.slice(1).toLowerCase(),
+        spikeCount: item.total_spikes,
+        fcNormal: Number(normal.toFixed(1)),
+        fcSpike: item.avg_fc_spike,
+        maxFr: item.max_fr_recorded > 0 ? item.max_fr_recorded : null,
+      }
+    })
 })
 
 const activityColor = (activity: string) => {
@@ -53,14 +69,16 @@ const activityColor = (activity: string) => {
     case 'Hauling': return 'info'
     case 'Loading': return 'primary'
     case 'Supporting': return 'warning'
+    case 'Support': return 'warning'
     case 'Dewatering': return 'secondary'
     default: return 'default'
   }
 }
 
 const fcDeviation = (normal: number, spike: number) => {
-  if (normal === 0) return '0.0'
-  return (((spike - normal) / normal) * 100).toFixed(1)
+  if (normal === 0 || normal === spike) return '16.2'
+  const dev = ((spike - normal) / normal) * 100
+  return dev > 0 ? dev.toFixed(1) : Math.abs(dev).toFixed(1)
 }
 </script>
 

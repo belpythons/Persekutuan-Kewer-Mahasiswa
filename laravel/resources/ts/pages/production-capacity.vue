@@ -30,10 +30,13 @@ const syncData = async () => {
     const today = new Date().toISOString().slice(0, 10)
     const forecast = await fetchForecast({ date: today }).catch(() => null)
 
+    const prodBcm = forecast?.daily_prod_bcm ?? 40000.0
+    const rainMm = forecast?.features_input?.Curah_Hujan_mm ?? 0.0
+
     capacityData.value = await fetchCalculateCapacity({
       date: today,
-      forecast_prod_bcm: forecast?.daily_prod_bcm ?? 40000.0,
-      curah_hujan_mm: forecast?.features_input?.Curah_Hujan_mm ?? 0.0,
+      forecast_prod_bcm: prodBcm,
+      curah_hujan_mm: rainMm,
     })
   } catch (error) {
     console.error('Sync AI Engine failed:', error)

@@ -110,9 +110,11 @@ import UserProfile from '@/layouts/components/UserProfile.vue'
 
   .kideco-nav-logo {
     inline-size: auto;
-    max-inline-size: 175px;
-    block-size: 38px;
+    max-inline-size: 260px;
+    block-size: 76px;
     object-fit: contain;
+    transform: scale(1.75);
+    transform-origin: left center;
   }
 }
 </style>

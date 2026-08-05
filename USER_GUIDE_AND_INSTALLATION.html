@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>KIDECO Fuel Ratio AI - Installation & User Guide</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@page {
+    size: A4;
+    margin: 20mm 15mm 20mm 15mm;
+    @bottom-right {
+        content: counter(page);
+    }
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: #1e293b;
+    background-color: #ffffff;
+    line-height: 1.6;
+    font-size: 10.5pt;
+    margin: 0;
+    padding: 0;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    color: #0f172a;
+    font-weight: 700;
+    line-height: 1.25;
+    margin-top: 1.5em;
+    margin-bottom: 0.5em;
+    page-break-after: avoid;
+}
+
+h1 {
+    font-size: 20pt;
+    border-bottom: 2px solid #0284c7;
+    padding-bottom: 8px;
+    margin-top: 0;
+    color: #0369a1;
+}
+
+h2 {
+    font-size: 14.5pt;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 6px;
+    margin-top: 1.8em;
+    color: #0f172a;
+}
+
+h3 {
+    font-size: 12pt;
+    color: #334155;
+}
+
+p {
+    margin-top: 0;
+    margin-bottom: 0.8em;
+}
+
+a {
+    color: #0284c7;
+    text-decoration: none;
+}
+
+ul, ol {
+    margin-top: 0;
+    margin-bottom: 0.8em;
+    padding-left: 1.5em;
+}
+
+li {
+    margin-bottom: 0.3em;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1em 0;
+    font-size: 9pt;
+    page-break-inside: avoid;
+}
+
+th, td {
+    border: 1px solid #cbd5e1;
+    padding: 7px 10px;
+    text-align: left;
+}
+
+th {
+    background-color: #f1f5f9;
+    color: #0f172a;
+    font-weight: 600;
+}
+
+tr:nth-child(even) {
+    background-color: #f8fafc;
+}
+
+code {
+    font-family: 'JetBrains Mono', Consolas, Monaco, monospace;
+    font-size: 8.5pt;
+    background-color: #f1f5f9;
+    color: #0f766e;
+    padding: 2px 5px;
+    border-radius: 4px;
+    border: 1px solid #e2e8f0;
+}
+
+pre {
+    background-color: #0f172a;
+    color: #f8fafc;
+    padding: 12px 16px;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-size: 8.5pt;
+    line-height: 1.45;
+    margin: 0.8em 0;
+    page-break-inside: avoid;
+}
+
+pre code {
+    background-color: transparent;
+    color: inherit;
+    padding: 0;
+    border: none;
+    font-size: 8.5pt;
+}
+
+blockquote {
+    border-left: 4px solid #0284c7;
+    background-color: #f0f9ff;
+    padding: 10px 14px;
+    margin: 1em 0;
+    border-radius: 0 6px 6px 0;
+    color: #0369a1;
+    font-size: 9.5pt;
+}
+
+hr {
+    border: 0;
+    height: 1px;
+    background: #e2e8f0;
+    margin: 1.5em 0;
+}
+
+.header-badge {
+    display: inline-block;
+    background: #e0f2fe;
+    color: #0369a1;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 8pt;
+    margin-bottom: 12px;
+}
+</style>
+</head>
+<body>
+<div class="header-badge">PT KIDECO JAYA AGUNG • AI FUEL RATIO SYSTEM</div>
+<h1>📘 KIDECO Fuel Ratio AI — Comprehensive Installation &amp; User Guide</h1>
+<h3><em>Buku Panduan Instalasi, Setup Lingkungan, Arsitektur, dan Operasional Pengguna</em></h3>
+<hr />
+<h2>📑 Daftar Bab (Table of Contents)</h2>
+<ul>
+<li><a href="#bab-1-pengenalan-sistem--arsitektur-solusi">Bab 1: Pengenalan Sistem &amp; Arsitektur Solusi</a></li>
+<li><a href="#bab-2-prasyarat-perangkat-keras--perangkat-lunak">Bab 2: Prasyarat Perangkat Keras &amp; Perangkat Lunak</a></li>
+<li><a href="#bab-3-panduan-instalasi-langkah-demi-langkah-step-by-step-installation">Bab 3: Panduan Instalasi Langkah-demi-Langkah (Step-by-Step Installation)</a></li>
+<li><a href="#31-menyiapkan-repository">3.1 Menyiapkan Repository</a></li>
+<li><a href="#32-menyiapkan-python-ai-microservice-fastapi--ml-engine">3.2 Menyiapkan Python AI Microservice (FastAPI &amp; ML Engine)</a></li>
+<li><a href="#33-menyiapkan-laravel-11--vue-3-frontend-portal">3.3 Menyiapkan Laravel 11 &amp; Vue 3 Frontend Portal</a></li>
+<li><a href="#bab-4-konfigurasi-database--environment-env">Bab 4: Konfigurasi Database &amp; Environment (.env)</a></li>
+<li><a href="#bab-5-panduan-pengguna-user-guide-per-modul">Bab 5: Panduan Pengguna (User Guide per Modul)</a></li>
+<li><a href="#51-modul-1-executive-dashboard-dashboard">5.1 Modul 1: Executive Dashboard (<code>/dashboard</code>)</a></li>
+<li><a href="#52-modul-2-ai-forecasting--real-time-simulator-forecasting-ai">5.2 Modul 2: AI Forecasting &amp; Real-Time Simulator (<code>/forecasting-ai</code>)</a></li>
+<li><a href="#53-modul-3-mining-fuel-ai-assistant-chatbot-gemini">5.3 Modul 3: Mining Fuel AI Assistant (Chatbot Gemini)</a></li>
+<li><a href="#54-modul-4-combined-capacity-determination-global-capacity">5.4 Modul 4: Combined Capacity Determination (<code>/global-capacity</code>)</a></li>
+<li><a href="#55-modul-5-production--equipment-fleet-catalog-production-capacity">5.5 Modul 5: Production &amp; Equipment Fleet Catalog (<code>/production-capacity</code>)</a></li>
+<li><a href="#bab-6-pengujian-api--validasi-sistem-verification--testing">Bab 6: Pengujian API &amp; Validasi Sistem (Verification &amp; Testing)</a></li>
+<li><a href="#bab-7-faq--panduan-penyelesaian-masalah-troubleshooting">Bab 7: FAQ &amp; Panduan Penyelesaian Masalah (Troubleshooting)</a></li>
+</ul>
+<hr />
+<h2>Bab 1: Pengenalan Sistem &amp; Arsitektur Solusi</h2>
+<p>Sistem <strong>KIDECO Fuel Ratio AI</strong> dibangun untuk menjawab tantangan operasional bahan bakar di industri pertambangan batubara skala besar, khususnya:<br />
+1. <strong>Volatilitas Konsumsi Bahan Bakar:</strong> Dampak signifikan cuaca hujan terhadap hambatan gelinding (<em>rolling resistance</em>), kondisi jalan tambang licin (<em>slippery haul road</em>), dan penurunan efisiensi armada.<br />
+2. <strong>Deteksi Dini Pemborosan Unit:</strong> Mengidentifikasi unit alat berat spesifik yang mengalami lonjakan konsumsi (<em>fuel spikes</em>) abnormal akibat kerusakan mekanis, kebiasaan operator, atau <em>under-performance</em>.<br />
+3. <strong>Optimasi Alokasi Armada Gabungan:</strong> Menentukan jumlah unit yang beroperasi secara presisi (<em>Loading, Hauling, Support, Dewatering</em>) agar target produksi tercapai tanpa terjadi pemborosan solar harian.</p>
+<h3>Diagram Alur Data &amp; Komponen</h3>
+<pre class="codehilite"><code>[Pengguna / Mine Planner]
+          |
+          v
+[Frontend Vue 3 + Vuetify 3 (Port 8000 / Vite)]
+          |
+          v (AJAX / REST)
+[Laravel 11 Gateway &amp; Controllers]
+          |
+          v (Internal HTTP Proxy)
+[FastAPI AI Microservice (Port 8002)]
+   ├── XGBoost Regressor (TimeSeriesSplit Cross-Validation)
+   ├── PyTorch Deep Autoencoder (Neural Reconstruction Loss)
+   ├── Non-Linear Rain Derating Engine
+   └── Google Gemini 1.5 Flash Chatbot
+          |
+          v (SQLAlchemy ORM Connection Pool)
+[PostgreSQL / Supabase Database Cloud]
+</code></pre>
+
+<hr />
+<h2>Bab 2: Prasyarat Perangkat Keras &amp; Perangkat Lunak</h2>
+<h3>Spesifikasi Minimum Hardware</h3>
+<ul>
+<li><strong>CPU:</strong> Dual Core 2.0 GHz (Disarankan Quad Core / Apple Silicon M-series)</li>
+<li><strong>RAM:</strong> Minimum 8 GB RAM (Disarankan 16 GB untuk training Autoencoder &amp; XGBoost)</li>
+<li><strong>Disk:</strong> Minimum 2 GB ruang penyimpanan bebas</li>
+</ul>
+<h3>Kebutuhan Software</h3>
+<ol>
+<li><strong>PHP:</strong> Versi <code>&gt;= 8.2</code></li>
+<li><strong>Composer:</strong> Versi <code>&gt;= 2.5</code></li>
+<li><strong>Node.js:</strong> Versi <code>&gt;= 18.0.0</code> (Rekomendasi: Node 20 LTS)</li>
+<li><strong>Python:</strong> Versi <code>&gt;= 3.10</code> atau <code>3.11</code></li>
+<li><strong>Git:</strong> Versi terbaru</li>
+</ol>
+<hr />
+<h2>Bab 3: Panduan Instalasi Langkah-demi-Langkah (Step-by-Step Installation)</h2>
+<h3>3.1 Menyiapkan Repository</h3>
+<p>Buka terminal Anda dan clone repositori ini:</p>
+<pre class="codehilite"><code class="language-bash">git clone https://github.com/belpythons/Persekutuan-Kewer-Mahasiswa
+cd Persekutuan-Kewer-Mahasiswa
+</code></pre>
+
+<hr />
+<h3>3.2 Menyiapkan Python AI Microservice (FastAPI &amp; ML Engine)</h3>
+<ol>
+<li>
+<p><strong>Masuk ke folder AI Microservice:</strong><br />
+<code>bash
+   cd python-ai-service</code></p>
+</li>
+<li>
+<p><strong>Buat dan aktifkan Virtual Environment:</strong><br />
+   - Di macOS / Linux:<br />
+<code>bash
+     python3 -m venv venv
+     source venv/bin/activate</code><br />
+   - Di Windows (PowerShell / Command Prompt):<br />
+<code>powershell
+     python -m venv venv
+     venv\Scripts\activate</code></p>
+</li>
+<li>
+<p><strong>Install Dependensi Python:</strong><br />
+<code>bash
+   pip install --upgrade pip
+   pip install -r requirements.txt</code></p>
+</li>
+<li>
+<p><strong>Konfigurasi <code>.env</code>:</strong><br />
+   Buat file <code>.env</code> di dalam folder <code>python-ai-service/</code>:<br />
+   ```env<br />
+   APP_NAME="KIDECO Fuel Ratio AI Service"<br />
+   APP_ENV=development<br />
+   DEBUG=True</p>
+</li>
+</ol>
+<p># Supabase Cloud Database (Default Cloud Pool)<br />
+   SUPABASE_URL=https://nxgurgphgoelraasauqt.supabase.co<br />
+   SUPABASE_KEY=sb_publishable_iRCaHzS3-hjk9id4GjIRKg_oMx-UrrP<br />
+   SUPABASE_PROJECT_ID=nxgurgphgoelraasauqt</p>
+<p>POSTGRES_USER=postgres<br />
+   POSTGRES_PASSWORD=<br />
+   POSTGRES_HOST=db.nxgurgphgoelraasauqt.supabase.co<br />
+   POSTGRES_PORT=5432<br />
+   POSTGRES_DB=postgres</p>
+<p># Google Gemini API Key<br />
+   GEMINI_API_KEY=<br />
+   GEMINI_MODEL=gemini-1.5-flash<br />
+   ```</p>
+<ol start="5">
+<li>
+<p><strong>Inisialisasi Data &amp; Model:</strong><br />
+   - Untuk mempopulasikan database dengan katalog unit dan data baseline:<br />
+<code>bash
+     python seed_database.py</code><br />
+   - Untuk melatih model XGBoost:<br />
+<code>bash
+     python pipelines/train_xgboost.py</code></p>
+</li>
+<li>
+<p><strong>Menjalankan AI Microservice:</strong><br />
+<code>bash
+   uvicorn main:app --host 0.0.0.0 --port 8002 --reload</code><br />
+<em>Uji ketersediaan di browser:</em> <code>http://localhost:8002/docs</code></p>
+</li>
+</ol>
+<hr />
+<h3>3.3 Menyiapkan Laravel 11 &amp; Vue 3 Frontend Portal</h3>
+<p>Buka jendela terminal baru dan navigasikan ke direktori <code>laravel</code>:</p>
+<ol>
+<li>
+<p><strong>Masuk ke folder Laravel:</strong><br />
+<code>bash
+   cd laravel</code></p>
+</li>
+<li>
+<p><strong>Install PHP Dependencies:</strong><br />
+<code>bash
+   composer install</code></p>
+</li>
+<li>
+<p><strong>Install Node &amp; Vue Dependencies:</strong><br />
+<code>bash
+   npm install</code></p>
+</li>
+<li>
+<p><strong>Konfigurasi <code>.env</code> Laravel:</strong><br />
+   Salin contoh file konfigurasi:<br />
+<code>bash
+   cp .env.example .env</code><br />
+   Pastikan variabel berikut ada di <code>laravel/.env</code>:<br />
+   ```env<br />
+   APP_NAME="KIDECO Fuel Ratio Portal"<br />
+   APP_ENV=local<br />
+   APP_KEY=<br />
+   APP_DEBUG=true<br />
+   APP_URL=http://127.0.0.1:8000</p>
+</li>
+</ol>
+<p># Koneksi ke Python AI Microservice<br />
+   AI_SERVICE_URL=http://localhost:8002/api/v1<br />
+   AI_SERVICE_TIMEOUT=15</p>
+<p># Mirror Gemini API Key (Opsional)<br />
+   GEMINI_API_KEY=<br />
+   ```</p>
+<ol start="5">
+<li>
+<p><strong>Generate Kunci Aplikasi &amp; Build Icons:</strong><br />
+<code>bash
+   php artisan key:generate
+   npm run build:icons</code></p>
+</li>
+<li>
+<p><strong>Jalankan Aplikasi:</strong><br />
+   Jalankan development server:<br />
+<code>bash
+   npm run dev</code><br />
+<em>(Secara otomatis menjalankan Vite dan menghubungkan ke server Laravel)</em></p>
+</li>
+</ol>
+<p>Buka peramban (browser) di: <strong><code>http://127.0.0.1:8000/dashboard</code></strong></p>
+<hr />
+<h2>Bab 4: Konfigurasi Database &amp; Environment (.env)</h2>
+<h3>Kunci Konfigurasi Penting</h3>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Kunci</th>
+<th>Penjelasan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>python-ai-service/.env</code></td>
+<td><code>GEMINI_API_KEY</code></td>
+<td>Kunci API Google Gemini untuk fungsionalitas Chatbot AI cerdas</td>
+</tr>
+<tr>
+<td><code>python-ai-service/.env</code></td>
+<td><code>POSTGRES_HOST</code></td>
+<td>Host database PostgreSQL / Supabase</td>
+</tr>
+<tr>
+<td><code>laravel/.env</code></td>
+<td><code>AI_SERVICE_URL</code></td>
+<td>Endpoint komunikasi dari Laravel ke Python AI Microservice (<code>http://localhost:8002/api/v1</code>)</td>
+</tr>
+<tr>
+<td><code>laravel/.env</code></td>
+<td><code>APP_URL</code></td>
+<td>Base URL portal web (<code>http://127.0.0.1:8000</code>)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>Bab 5: Panduan Pengguna (User Guide per Modul)</h2>
+<h3>5.1 Modul 1: Executive Dashboard (<code>/dashboard</code>)</h3>
+<p>Halaman ini adalah pusat monitoring harian bagi <em>Management</em> dan <em>Mine Operation Supervisor</em>:<br />
+1. <strong>Dynamic Threshold Alert:</strong><br />
+   - Membandingkan Fuel Ratio hari ini terhadap ambang batas dinamis.<br />
+   - Status <strong>NORMAL</strong> (Hijau): Operasional efisien.<br />
+   - Status <strong>WARNING</strong> (Kuning): Peringatan dini potensi pemborosan akibat kondisi rute/hujan.<br />
+   - Status <strong>CRITICAL</strong> (Merah): Terjadi anomali signifikan yang memerlukan investigasi lapangan segera.<br />
+2. <strong>PyTorch Spike Summary:</strong><br />
+   - Menghitung jumlah anomali aktif yang terdeteksi dalam 24 jam terakhir.<br />
+3. <strong>Activity Fuel Allocation Donut Chart:</strong><br />
+   - Memvisualisasikan persentase alokasi solar untuk <em>Hauling</em>, <em>Loading</em>, <em>Support</em>, dan <em>Dewatering</em>.<br />
+4. <strong>Top Anomalous Leaderboard:</strong><br />
+   - Menampilkan tabel unit paling boros lengkap dengan ID unit, nilai <em>Actual FC</em>, <em>Normal FC</em>, serta deviasi persentasenya (<code>+16.2%</code>, <code>+85.5%</code>, dll.).</p>
+<hr />
+<h3>5.2 Modul 2: AI Forecasting &amp; Real-Time Simulator (<code>/forecasting-ai</code>)</h3>
+<p>Modul perencanaan masa depan dan simulasi skenario:<br />
+1. <strong>7-Day Fuel Ratio Projection:</strong><br />
+   - Melihat grafik estimasi rasio bahan bakar 7 hari ke depan dibandingkan target volume galian BCM.<br />
+2. <strong>Reactive Scenario Simulator (Tanpa Tombol Manual):</strong><br />
+   - Geser slider <strong>Curah Hujan (mm)</strong> untuk melihat efek hujan terhadap Fuel Ratio.<br />
+   - Geser slider <strong>Jarak Angkut (m)</strong> untuk melihat pengaruh jarak <em>disposal</em>.<br />
+   - Geser slider <strong>Target Produksi (BCM)</strong> untuk menyesuaikan skala produksi.<br />
+   - Hasil kalkulasi dan status risiko terupdate secara instan dan otomatis (<em>debounced</em>).</p>
+<hr />
+<h3>5.3 Modul 3: Mining Fuel AI Assistant (Chatbot Gemini)</h3>
+<p>Terletak pada kartu chatbot di halaman Forecasting AI:<br />
+- <strong>Tanya Jawab Percakapan:</strong> Ketik pertanyaan dalam bahasa Indonesia atau Inggris.<br />
+- <strong>Contoh Pertanyaan:</strong><br />
+  - <em>"Halo, siapa kamu dan apa fungsimu?"</em><br />
+  - <em>"Unit apa saja yang terdeteksi mengalami anomali solar hari ini?"</em><br />
+  - <em>"Bagaimana rekomendasi penyesuaian armada jika besok diprediksi hujan lebat 30 mm?"</em><br />
+  - <em>"Berapa konsumsi rata-rata unit HD785-7?"</em></p>
+<hr />
+<h3>5.4 Modul 4: Combined Capacity Determination (<code>/global-capacity</code>)</h3>
+<p>Modul perencanaan armada dan kalkulasi derating cuaca:<br />
+1. <strong>Baseline vs AI Derated Allocation:</strong><br />
+   - Menampilkan tabel perbandingan unit nominal vs unit efektif yang dibutuhkan.<br />
+2. <strong>Metrik Aktivitas Operasional:</strong><br />
+   - Kebutuhan unit aktif per kategori (<em>Loading, Hauling, Support, Dewatering</em>).<br />
+   - Utilisasi armada rata-rata.<br />
+   - Total konsumsi solar per jam dan estimasi kebutuhan solar harian (Liter/hari).</p>
+<hr />
+<h3>5.5 Modul 5: Production &amp; Equipment Fleet Catalog (<code>/production-capacity</code>)</h3>
+<p>Pustaka spesifikasi unit:<br />
+- Memuat spesifikasi teknis standar konsumsi bahan bakar (<em>L/hr</em>), kapasitas angkut/gali (<em>BCM/hr</em>), dan status operasional armada PT Kideco Jaya Agung.</p>
+<hr />
+<h2>Bab 6: Pengujian API &amp; Validasi Sistem (Verification &amp; Testing)</h2>
+<p>Anda dapat menguji microservice secara langsung menggunakan perintah cURL:</p>
+<h3>1. Test Prediksi Fuel Ratio (XGBoost)</h3>
+<pre class="codehilite"><code class="language-bash">curl -X POST http://localhost:8002/api/v1/forecast \
+  -H &quot;Content-Type: application/json&quot; \
+  -d '{
+    &quot;date&quot;: &quot;2026-08-05&quot;,
+    &quot;curah_hujan_mm&quot;: 15.0,
+    &quot;temp_max_c&quot;: 32.5,
+    &quot;haul_distance_m&quot;: 4200.0,
+    &quot;daily_prod_bcm&quot;: 45000.0
+  }'
+</code></pre>
+
+<h3>2. Test Kalkulasi Kapasitas Armada</h3>
+<pre class="codehilite"><code class="language-bash">curl -X POST http://localhost:8002/api/v1/calculate-capacity \
+  -H &quot;Content-Type: application/json&quot; \
+  -d '{
+    &quot;date&quot;: &quot;2026-08-05&quot;,
+    &quot;forecast_prod_bcm&quot;: 42000.0,
+    &quot;curah_hujan_mm&quot;: 10.0
+  }'
+</code></pre>
+
+<h3>3. Test AI Chatbot</h3>
+<pre class="codehilite"><code class="language-bash">curl -X POST http://localhost:8002/api/v1/chatbot/query \
+  -H &quot;Content-Type: application/json&quot; \
+  -d '{
+    &quot;query&quot;: &quot;Unit mana saja yang boros hari ini?&quot;
+  }'
+</code></pre>
+
+<hr />
+<h2>Bab 7: FAQ &amp; Panduan Penyelesaian Masalah (Troubleshooting)</h2>
+<table>
+<thead>
+<tr>
+<th>Gejala Masalah</th>
+<th>Kemungkinan Penyebab</th>
+<th>Langkah Solusi</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong><code>uvicorn: command not found</code></strong></td>
+<td>Virtual environment Python belum aktif</td>
+<td>Jalankan <code>source venv/bin/activate</code> (macOS/Linux) atau <code>venv\Scripts\activate</code> (Windows).</td>
+</tr>
+<tr>
+<td><strong>Chatbot merespon dengan fallback data</strong></td>
+<td><code>GEMINI_API_KEY</code> belum terisi di <code>.env</code></td>
+<td>Masukkan API key Gemini di <code>python-ai-service/.env</code>, lalu restart uvicorn.</td>
+</tr>
+<tr>
+<td><strong>Koneksi Database Timeout / Refused</strong></td>
+<td>Host PostgreSQL diblokir firewall atau koneksi internet terputus</td>
+<td>Periksa koneksi internet ke Supabase Cloud dan pastikan port <code>5432</code> terbuka.</td>
+</tr>
+<tr>
+<td><strong>Vite Hot-Reload Error</strong></td>
+<td>Port <code>5173</code> sedang digunakan proses lain</td>
+<td>Hentikan proses yang berjalan atau restart terminal.</td>
+</tr>
+<tr>
+<td><strong>Ikon tidak muncul di Dashboard</strong></td>
+<td>File build iconify belum dibuat</td>
+<td>Jalankan <code>npm run build:icons</code> di dalam folder <code>laravel</code>.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<p><em>Dokumen ini disusun untuk memudahkan seluruh tim dalam instalasi, pemeliharaan, dan pengoperasian sistem KIDECO Fuel Ratio AI.</em></p>
+</body>
+</html>

@@ -26,9 +26,9 @@ import VerticalNavLink from '@layouts/components/VerticalNavLink.vue'
   />
   <VerticalNavLink
     :item="{
-      title: 'Support & Weather',
-      icon: 'bx-cloud',
-      to: '/support-weather-mlops',
+      title: 'Global Capacity',
+      icon: 'bx-slider-alt',
+      to: '/global-capacity',
     }"
   />
   <VerticalNavLink

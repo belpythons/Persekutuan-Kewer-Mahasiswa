@@ -109,6 +109,33 @@ class FuelRatioAiClient
     }
 
     /**
+     * Global Fleet Capacity Tuning & Variance Analysis (324 units)
+     */
+    public function globalCapacityTuning(array $payload): array
+    {
+        return $this->request('post', '/api/v1/global-capacity-tuning', $payload);
+    }
+
+    /**
+     * Synchronize Real-time BMKG Weather Logs
+     */
+    public function syncBmkgWeather(): array
+    {
+        return $this->request('post', '/api/v1/weather/sync-bmkg');
+    }
+
+    /**
+     * Mining Fuel AI Chatbot Assistant Query
+     */
+    public function queryChatbot(string $query, array $history = []): array
+    {
+        return $this->request('post', '/api/v1/chatbot/query', [
+            'query' => $query,
+            'history' => $history,
+        ]);
+    }
+
+    /**
      * Health Check Microservice
      */
     public function healthCheck(): array

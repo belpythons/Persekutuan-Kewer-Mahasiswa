@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useAiApi } from '@/composables/useAiApi'
+
 interface RealtimeWeatherData {
   rainfall_mm: number
   temperature_c: number
@@ -13,18 +15,20 @@ interface RealtimeWeatherData {
   last_updated: string
 }
 
+const { fetchSyncBmkgWeather } = useAiApi()
+
 const isLoading = ref(true)
 const isError = ref(false)
 
 const weather = ref<RealtimeWeatherData>({
   rainfall_mm: 0.0,
-  temperature_c: 29.6,
-  apparent_temp_c: 33.3,
-  wind_speed_kmh: 9.2,
+  temperature_c: 28.3,
+  apparent_temp_c: 32.4,
+  wind_speed_kmh: 8.2,
   wind_direction_deg: 137,
-  humidity_pct: 64,
+  humidity_pct: 71,
   weather_code: 1,
-  location: 'Kideco Paser Pit / East Kalimantan',
+  location: 'Kideco Paser Pit, Kalimantan Timur',
   lat: -1.82,
   lon: 115.89,
   last_updated: '-',
@@ -69,13 +73,13 @@ const rainDeratingPct = computed(() => {
 
 const haulDistanceM = computed(() => Math.round(3900 + (weather.value.rainfall_mm * 8)))
 
-// KIDECO BRAND COLORS: Focus strictly on Red & Blue Theme
+// Professional Corporate Mining Color Scheme (Clean, High Contrast, Non-Slop)
 const rainStatus = computed(() => {
   const r = weather.value.rainfall_mm
-  if (r === 0) return { label: 'DRY (NORMAL)', color: 'primary', accentColor: '#1565C0', bgColor: '#E3F2FD', icon: 'bx-sun', desc: 'Kondisi kering — Tidak ada derating hujan, jarak angkut 3.900m' }
-  if (r <= 5) return { label: 'LIGHT RAIN', color: 'primary', accentColor: '#1976D2', bgColor: '#E8F0FE', icon: 'bx-cloud-rain', desc: `Derating: -${rainDeratingPct.value}% | Pengawasan operasional jalan pit` }
-  if (r <= 20) return { label: 'MODERATE RAIN', color: 'error', accentColor: '#E53935', bgColor: '#FFEBEE', icon: 'bx-cloud-lightning', desc: `Derating: -${rainDeratingPct.value}% | Risiko jalan licin, penurunan kecepatan` }
-  return { label: 'HEAVY RAIN (CRITICAL)', color: 'error', accentColor: '#C5221F', bgColor: '#FCE8E6', icon: 'bx-cloud-heavy-rain', desc: `Derating: -${rainDeratingPct.value}% | Risiko slip tinggi, potensi pit stop` }
+  if (r === 0) return { label: 'DRY (OPERATIONAL)', color: 'success', icon: 'bx-sun', desc: 'Kondisi pit kering — Tidak ada derating hujan, jarak angkut standar 3.900m' }
+  if (r <= 5) return { label: 'LIGHT RAIN', color: 'info', icon: 'bx-cloud-rain', desc: `Derating: -${rainDeratingPct.value}% | Pengawasan operasional jalan pit` }
+  if (r <= 20) return { label: 'MODERATE RAIN', color: 'warning', icon: 'bx-cloud-lightning', desc: `Derating: -${rainDeratingPct.value}% | Risiko jalan licin, penurunan kecepatan` }
+  return { label: 'HEAVY RAIN (CRITICAL)', color: 'error', icon: 'bx-cloud-heavy-rain', desc: `Derating: -${rainDeratingPct.value}% | Risiko slip tinggi, potensi pit stop` }
 })
 
 const windCompass = computed(() => {
@@ -97,16 +101,18 @@ const fetchRealtimeWeather = async () => {
     if (data.current) {
       const c = data.current
       weather.value.rainfall_mm = Number((c.precipitation ?? c.rain ?? 0.0).toFixed(2))
-      weather.value.temperature_c = Number((c.temperature_2m ?? 30.0).toFixed(1))
-      weather.value.apparent_temp_c = Number((c.apparent_temperature ?? 33.0).toFixed(1))
-      weather.value.wind_speed_kmh = Number((c.wind_speed_10m ?? 10.0).toFixed(1))
-      weather.value.wind_direction_deg = c.wind_direction_10m ?? 0
-      weather.value.humidity_pct = c.relative_humidity_2m ?? 65
+      weather.value.temperature_c = Number((c.temperature_2m ?? 28.3).toFixed(1))
+      weather.value.apparent_temp_c = Number((c.apparent_temperature ?? 32.4).toFixed(1))
+      weather.value.wind_speed_kmh = Number((c.wind_speed_10m ?? 8.2).toFixed(1))
+      weather.value.wind_direction_deg = c.wind_direction_10m ?? 137
+      weather.value.humidity_pct = c.relative_humidity_2m ?? 71
       weather.value.weather_code = c.weather_code ?? 1
 
       const now = new Date()
       weather.value.last_updated = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WITA'
     }
+
+    fetchSyncBmkgWeather().catch(() => null)
   } catch (err) {
     console.error('Failed to fetch real-time weather from Open-Meteo:', err)
     isError.value = true
@@ -129,60 +135,47 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <VCard
-    class="weather-card overflow-hidden"
-    :style="{ borderLeft: `6px solid ${rainStatus.accentColor}` }"
-  >
-    <VCardItem class="pb-2">
+  <VCard class="weather-card">
+    <VCardItem class="pb-3">
       <template #prepend>
-        <VAvatar
-          :color="rainStatus.color"
-          variant="tonal"
-          size="48"
-          rounded
-        >
-          <VIcon
-            :icon="weatherInfo.icon"
-            size="28"
-          />
-        </VAvatar>
+        <div class="header-icon-box me-3">
+          <VIcon :icon="weatherInfo.icon" size="24" class="text-primary" />
+        </div>
       </template>
 
-      <VCardTitle class="d-flex align-center flex-wrap gap-2 text-body-1 font-weight-bold">
-        <span>Real-Time Weather Radar & Rain Derating</span>
+      <VCardTitle class="d-flex align-center flex-wrap gap-2 text-h6 font-weight-bold tracking-tight">
+        <span>Real-Time Weather & Rain Derating Radar</span>
         <VChip
           color="primary"
           size="x-small"
           variant="tonal"
-          class="font-weight-bold"
+          class="font-weight-medium ms-1"
         >
-          <VIcon start icon="bx-wifi" size="14" />
-          LIVE BMKG / Open-Meteo
+          BMKG / Open-Meteo
         </VChip>
       </VCardTitle>
 
-      <VCardSubtitle class="d-flex align-center gap-1">
+      <VCardSubtitle class="d-flex align-center gap-1 text-caption text-medium-emphasis">
         <VIcon icon="bx-map-pin" size="14" class="text-primary" />
         <span>{{ weather.location }} (Lat: {{ weather.lat }}, Lon: {{ weather.lon }})</span>
-        <span class="text-caption text-medium-emphasis ms-2">• Sync: {{ weather.last_updated }}</span>
+        <span class="ms-2">• Sync: {{ weather.last_updated }}</span>
       </VCardSubtitle>
 
       <template #append>
         <div class="d-flex align-center gap-2">
           <VChip
             :color="rainStatus.color"
-            variant="elevated"
-            size="large"
-            class="font-weight-bold"
+            variant="tonal"
+            class="font-weight-bold px-3"
           >
-            <VIcon :icon="rainStatus.icon" start size="18" />
+            <VIcon :icon="rainStatus.icon" start size="16" />
             {{ rainStatus.label }}
           </VChip>
           <VBtn
             icon="bx-refresh"
             variant="tonal"
             size="small"
-            color="primary"
+            color="secondary"
             :loading="isLoading"
             @click="fetchRealtimeWeather"
           />
@@ -190,135 +183,89 @@ onUnmounted(() => {
       </template>
     </VCardItem>
 
-    <VCardText class="pt-2">
-      <!-- 4 METRIC PANELS — STRICTLY KIDECO RED & BLUE THEME -->
-      <VRow>
-        <!-- 1. CURAH HUJAN (KIDECO BLUE) -->
+    <VCardText class="pt-1">
+      <!-- CLEAN COMPACT STATS GRID -->
+      <VRow density="comfortable">
+        <!-- 1. CURAH HUJAN -->
         <VCol cols="12" sm="6" md="3">
-          <VSheet
-            rounded="lg"
-            class="p-3 border d-flex align-center gap-3 metric-sheet"
-            elevation="0"
-          >
-            <VAvatar
-              color="primary"
-              variant="tonal"
-              size="42"
-              rounded
-            >
-              <VIcon icon="bx-cloud-rain" size="22" />
-            </VAvatar>
-            <div>
-              <span class="text-caption text-medium-emphasis">Curah Hujan</span>
-              <h4 class="text-h4 font-weight-bold text-primary">
-                {{ weather.rainfall_mm.toFixed(2) }} <span class="text-caption text-medium-emphasis">mm/h</span>
-              </h4>
-              <span class="text-caption text-primary font-weight-medium">
-                {{ weatherInfo.desc }}
-              </span>
+          <div class="stat-item border rounded-lg p-3">
+            <div class="d-flex align-center justify-space-between mb-1">
+              <span class="text-caption text-medium-emphasis font-weight-medium">Curah Hujan</span>
+              <VIcon icon="bx-water" size="18" class="text-info" />
             </div>
-          </VSheet>
+            <div class="text-h5 font-weight-bold text-high-emphasis">
+              {{ weather.rainfall_mm.toFixed(2) }} <span class="text-caption text-medium-emphasis">mm/h</span>
+            </div>
+            <div class="text-caption text-info font-weight-medium">
+              {{ weatherInfo.desc }}
+            </div>
+          </div>
         </VCol>
 
-        <!-- 2. SUHU PIT (KIDECO RED) -->
+        <!-- 2. SUHU PIT -->
         <VCol cols="12" sm="6" md="3">
-          <VSheet
-            rounded="lg"
-            class="p-3 border d-flex align-center gap-3 metric-sheet"
-            elevation="0"
-          >
-            <VAvatar
-              color="error"
-              variant="tonal"
-              size="42"
-              rounded
-            >
-              <VIcon icon="bx-sun" size="22" />
-            </VAvatar>
-            <div>
-              <span class="text-caption text-medium-emphasis">Suhu Pit</span>
-              <h4 class="text-h4 font-weight-bold text-error">
-                {{ weather.temperature_c }}°C
-              </h4>
-              <span class="text-caption text-medium-emphasis">
-                Sensasi: {{ weather.apparent_temp_c }}°C
-              </span>
+          <div class="stat-item border rounded-lg p-3">
+            <div class="d-flex align-center justify-space-between mb-1">
+              <span class="text-caption text-medium-emphasis font-weight-medium">Suhu Pit</span>
+              <VIcon icon="bx-thermometer" size="18" class="text-warning" />
             </div>
-          </VSheet>
+            <div class="text-h5 font-weight-bold text-high-emphasis">
+              {{ weather.temperature_c }}°C
+            </div>
+            <div class="text-caption text-medium-emphasis">
+              Sensasi: {{ weather.apparent_temp_c }}°C
+            </div>
+          </div>
         </VCol>
 
-        <!-- 3. KECEPATAN ANGIN & HUMIDITY (KIDECO BLUE) -->
+        <!-- 3. KECEPATAN ANGIN & KELEMBAPAN -->
         <VCol cols="12" sm="6" md="3">
-          <VSheet
-            rounded="lg"
-            class="p-3 border d-flex align-center gap-3 metric-sheet"
-            elevation="0"
-          >
-            <VAvatar
-              color="primary"
-              variant="tonal"
-              size="42"
-              rounded
-            >
-              <VIcon icon="bx-wind" size="22" />
-            </VAvatar>
-            <div>
-              <span class="text-caption text-medium-emphasis">Angin & Lembap</span>
-              <h4 class="text-h4 font-weight-bold text-primary">
-                {{ weather.wind_speed_kmh }} <span class="text-caption text-medium-emphasis">km/h</span>
-              </h4>
-              <span class="text-caption text-medium-emphasis">
-                {{ windCompass }} ({{ weather.humidity_pct }}%)
-              </span>
+          <div class="stat-item border rounded-lg p-3">
+            <div class="d-flex align-center justify-space-between mb-1">
+              <span class="text-caption text-medium-emphasis font-weight-medium">Angin & Lembap</span>
+              <VIcon icon="bx-wind" size="18" class="text-primary" />
             </div>
-          </VSheet>
+            <div class="text-h5 font-weight-bold text-high-emphasis">
+              {{ weather.wind_speed_kmh }} <span class="text-caption text-medium-emphasis">km/h</span>
+            </div>
+            <div class="text-caption text-medium-emphasis">
+              {{ windCompass }} ({{ weather.humidity_pct }}% Humid)
+            </div>
+          </div>
         </VCol>
 
-        <!-- 4. IMPACT HAUL DISTANCE & DERATING (KIDECO RED) -->
+        <!-- 4. IMPACT HAUL DISTANCE (MINING HAUL TRUCK) -->
         <VCol cols="12" sm="6" md="3">
-          <VSheet
-            rounded="lg"
-            class="p-3 border d-flex align-center gap-3 metric-sheet"
-            elevation="0"
-          >
-            <VAvatar
-              color="error"
-              variant="tonal"
-              size="42"
-              rounded
-            >
-              <VIcon icon="bx-navigation" size="22" />
-            </VAvatar>
-            <div>
-              <span class="text-caption text-medium-emphasis">Impact Haul Dist</span>
-              <h4 class="text-h4 font-weight-bold text-error">
-                {{ haulDistanceM.toLocaleString('id-ID') }} <span class="text-caption text-medium-emphasis">m</span>
-              </h4>
-              <span class="text-caption font-weight-bold text-error">
-                Derating: -{{ rainDeratingPct }}%
-              </span>
+          <div class="stat-item border rounded-lg p-3">
+            <div class="d-flex align-center justify-space-between mb-1">
+              <span class="text-caption text-medium-emphasis font-weight-medium">Impact Haul Distance</span>
+              <VIcon icon="bx-truck" size="18" class="text-primary" />
             </div>
-          </VSheet>
+            <div class="text-h5 font-weight-bold text-primary">
+              {{ haulDistanceM.toLocaleString('id-ID') }} <span class="text-caption text-medium-emphasis">m</span>
+            </div>
+            <div class="text-caption font-weight-medium" :class="`text-${rainStatus.color}`">
+              Rain Derating: -{{ rainDeratingPct }}%
+            </div>
+          </div>
         </VCol>
       </VRow>
 
       <VDivider class="my-3" />
 
-      <!-- FOOTER SUMMARY BAR — KIDECO RED & BLUE ACCENTS -->
-      <div class="d-flex align-center justify-space-between flex-wrap gap-2 text-body-2">
+      <!-- FOOTER SUMMARY BAR -->
+      <div class="d-flex align-center justify-space-between flex-wrap gap-2 text-caption">
         <div class="d-flex align-center gap-2">
           <VIcon
             icon="bx-info-circle"
-            size="18"
+            size="16"
             :color="rainStatus.color"
           />
-          <span class="font-weight-medium">{{ rainStatus.desc }}</span>
+          <span class="font-weight-medium text-high-emphasis">{{ rainStatus.desc }}</span>
         </div>
         <div class="d-flex align-center gap-2">
-          <span class="text-caption text-medium-emphasis">Faktor Derating: <strong>{{ rainDeratingFactor.toFixed(4) }}x</strong></span>
-          <VChip size="x-small" color="primary" variant="tonal" class="font-weight-medium">
-            Formula Non-Linear Solusi Celah #9
-          </VChip>
+          <span class="text-medium-emphasis">Faktor Derating: <strong class="text-high-emphasis">{{ rainDeratingFactor.toFixed(4) }}x</strong></span>
+          <span class="text-medium-emphasis">• Formula Non-Linear Solusi #9</span>
         </div>
       </div>
     </VCardText>
@@ -327,17 +274,30 @@ onUnmounted(() => {
 
 <style scoped>
 .weather-card {
-  transition: all 0.25s ease-in-out;
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
 }
 
-.metric-sheet {
-  background-color: rgba(var(--v-theme-surface), 0.6);
+.header-icon-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background-color: rgba(var(--v-theme-primary), 0.08);
+}
+
+.stat-item {
+  background-color: rgba(var(--v-theme-surface), 0.5);
   border-color: rgba(var(--v-border-color), var(--v-border-opacity)) !important;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: border-color 0.2s ease;
 }
 
-.metric-sheet:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+.stat-item:hover {
+  border-color: rgba(var(--v-theme-primary), 0.3) !important;
+}
+
+.tracking-tight {
+  letter-spacing: -0.3px;
 }
 </style>

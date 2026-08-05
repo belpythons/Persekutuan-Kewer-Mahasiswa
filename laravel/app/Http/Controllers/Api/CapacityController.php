@@ -51,4 +51,55 @@ class CapacityController extends Controller
             ], 503);
         }
     }
+
+    /**
+     * POST /api/v1/global-capacity-tuning
+     */
+    public function globalTuning(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'date' => 'nullable|date_format:Y-m-d',
+            'forecast_prod_bcm' => 'nullable|numeric|min:0',
+            'curah_hujan_mm' => 'nullable|numeric|min:0',
+            'auto_scan_anomalies' => 'nullable|boolean',
+        ]);
+
+        try {
+            $payload = [
+                'date' => $validated['date'] ?? date('Y-m-d'),
+                'forecast_prod_bcm' => (float) ($validated['forecast_prod_bcm'] ?? 40000.0),
+                'curah_hujan_mm' => (float) ($validated['curah_hujan_mm'] ?? 5.0),
+                'auto_scan_anomalies' => $validated['auto_scan_anomalies'] ?? true,
+            ];
+
+            $result = $this->aiClient->globalCapacityTuning($payload);
+
+            return response()->json($result);
+        } catch (Exception $e) {
+            return response()->json([
+                'error' => 'AI Service tidak tersedia',
+                'message' => $e->getMessage(),
+                'fallback' => true,
+            ], 503);
+        }
+    }
+
+    /**
+     * POST /api/v1/weather/sync-bmkg
+     */
+    public function syncBmkg(Request $request): JsonResponse
+    {
+        try {
+            $result = $this->aiClient->syncBmkgWeather();
+
+            return response()->json($result);
+        } catch (Exception $e) {
+            return response()->json([
+                'error' => 'AI Service tidak tersedia',
+                'message' => $e->getMessage(),
+                'fallback' => true,
+            ], 503);
+        }
+    }
 }
+

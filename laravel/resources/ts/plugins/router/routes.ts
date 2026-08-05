@@ -13,8 +13,8 @@ export const routes = [
         component: () => import('@/pages/production-capacity.vue'),
       },
       {
-        path: 'support-weather-mlops',
-        component: () => import('@/pages/support-weather-mlops.vue'),
+        path: 'global-capacity',
+        component: () => import('@/pages/global-capacity.vue'),
       },
       {
         path: 'forecasting-ai',
