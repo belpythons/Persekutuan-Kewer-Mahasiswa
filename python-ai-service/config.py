@@ -28,8 +28,13 @@ class Settings(BaseSettings):
         # Direct Supabase PostgreSQL URL if password supplied in env
         return f"postgresql://{self.POSTGRES_USER}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
 
+    # Gemini AI Configuration
+    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+
     class Config:
         env_file = ".env"
         extra = "ignore"
 
 settings = Settings()
+
