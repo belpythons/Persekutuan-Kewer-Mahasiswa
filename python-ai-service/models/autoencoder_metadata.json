@@ -1,0 +1,25 @@
+{
+  "model_name": "PyTorch Deep Autoencoder Anomaly Detector",
+  "version": "1.0.0",
+  "input_features": [
+    "FC_Ratio",
+    "Unit_FR_Ratio",
+    "Unit_Fuel_Ratio"
+  ],
+  "training_sample_count": 2478,
+  "final_normal_loss_mse": 0.186768040060997,
+  "global_threshold": 1.868963360786438,
+  "activity_thresholds": {
+    "SUPPORT": 1.9468812942504883,
+    "LOADING": 1.7391573190689087,
+    "HAULING": 1.731812596321106,
+    "DEWATERING": 2.151097297668457
+  },
+  "evaluation": {
+    "precision": 0.851063829787234,
+    "recall": 0.975609756097561,
+    "true_positive": 80,
+    "false_positive": 14,
+    "false_negative": 2
+  }
+}
