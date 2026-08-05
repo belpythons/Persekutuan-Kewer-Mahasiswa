@@ -1,42 +1,95 @@
 <script setup lang="ts">
 import { useTheme } from 'vuetify'
 import { hexToRgb } from '@core/utils/colorConverter'
+import { useAiApi } from '@/composables/useAiApi'
+import type { Forecast7DaysResponse, ForecastHistoryItem } from '@/composables/useAiApi'
 
 const vuetifyTheme = useTheme()
+const { fetchForecast7Days, fetchForecastHistory } = useAiApi()
 
-// 30 days historical + 7 days forecast
-const categories = [
-  '01/07', '02/07', '03/07', '04/07', '05/07', '06/07', '07/07', '08/07', '09/07', '10/07',
-  '11/07', '12/07', '13/07', '14/07', '15/07', '16/07', '17/07', '18/07', '19/07', '20/07',
-  '21/07', '22/07', '23/07', '24/07', '25/07', '26/07', '27/07', '28/07', '29/07', '30/07',
-  '01/08 (FC)', '02/08 (FC)', '03/08 (FC)', '04/08 (FC)', '05/08 (FC)', '06/08 (FC)', '07/08 (FC)',
-]
+const isLoading = ref(true)
+const forecast7DaysData = ref<Forecast7DaysResponse | null>(null)
+const historyLogs = ref<ForecastHistoryItem[]>([])
 
-// Actual FR ends on day 30, null for forecast days
-const actualFr = [
-  1.148, 1.155, 1.162, 1.170, 1.158, 1.145, 1.180, 1.195, 1.210, 1.235,
-  1.250, 1.245, 1.220, 1.198, 1.175, 1.160, 1.155, 1.170, 1.190, 1.225,
-  1.260, 1.280, 1.275, 1.255, 1.230, 1.210, 1.195, 1.185, 1.175, 1.165,
-  null, null, null, null, null, null, null,
-]
+// Format date string YYYY-MM-DD to DD/MM
+const formatDateLabel = (dateStr: string, isForecast = false) => {
+  if (!dateStr) return ''
+  const parts = dateStr.split('-')
+  if (parts.length < 3) return dateStr
+  const label = `${parts[2]}/${parts[1]}`
+  return isForecast ? `${label} (FC)` : label
+}
 
-// Forecast FR overlaps and continues for 7 days
-const forecastFr = [
-  null, null, null, null, null, null, null, null, null, null,
-  null, null, null, null, null, null, null, null, null, null,
-  null, null, null, null, null, null, null, null, null, 1.165,
-  1.172, 1.185, 1.210, 1.285, 1.340, 1.295, 1.220,
-]
+// 1. Dynamic Categories from DB History + XGBoost 7-Day Forecast API
+const categories = computed(() => {
+  const histCats = historyLogs.value.map(h => formatDateLabel(h.log_date, false))
+  const fcCats = (forecast7DaysData.value?.daily_forecasts || []).map(f => formatDateLabel(f.log_date, true))
+  return [...histCats, ...fcCats]
+})
 
-const budgetBaseline = 1.1576
-const warningThreshold = 1.2503
-const criticalThreshold = 1.3660
+// 2. Dynamic Actual FR Series from Database Logs
+const actualFrSeries = computed(() => {
+  const histActuals = historyLogs.value.map(h => h.actual_fr)
+  const fcCount = forecast7DaysData.value?.daily_forecasts?.length ?? 0
+  return [...histActuals, ...Array(fcCount).fill(null)]
+})
+
+// 3. Dynamic Forecast FR Series from XGBoost Engine API Output JSON
+const forecastFrSeries = computed(() => {
+  const histCount = historyLogs.value.length
+  const lastHistVal = histCount > 0 ? historyLogs.value[histCount - 1].actual_fr : null
+  const nulls = Array(Math.max(0, histCount - 1)).fill(null)
+
+  const fcValues = (forecast7DaysData.value?.daily_forecasts || []).map(d => d.forecast_fr)
+  if (lastHistVal !== null) {
+    return [...nulls, lastHistVal, ...fcValues]
+  }
+  return [...nulls, ...fcValues]
+})
+
+const budgetBaseline = computed(() => {
+  return forecast7DaysData.value?.daily_forecasts?.[0]?.budget_baseline ?? 1.018
+})
+
+const warningThreshold = computed(() => {
+  return forecast7DaysData.value?.daily_forecasts?.[0]?.warning_threshold ?? 1.0994
+})
+
+const criticalThreshold = computed(() => {
+  return forecast7DaysData.value?.daily_forecasts?.[0]?.critical_threshold ?? 1.2012
+})
+
+const loadChartData = async () => {
+  isLoading.value = true
+  try {
+    const today = new Date().toISOString().slice(0, 10)
+    const [histRes, fcRes] = await Promise.all([
+      fetchForecastHistory(30).catch(() => ({ total: 0, historical_logs: [] })),
+      fetchForecast7Days(today).catch(() => null)
+    ])
+    historyLogs.value = histRes.historical_logs || []
+    forecast7DaysData.value = fcRes
+  } catch (error) {
+    console.error('Failed to load real AI chart data from database/API:', error)
+  } finally {
+    isLoading.value = false
+  }
+}
+
+onMounted(() => {
+  loadChartData()
+})
 
 const chartOptions = computed(() => {
   const currentTheme = vuetifyTheme.current.value.colors
   const variableTheme = vuetifyTheme.current.value.variables
   const disabledTextColor = `rgba(${hexToRgb(String(currentTheme['on-surface']))},${variableTheme['disabled-opacity']})`
   const borderColor = `rgba(${hexToRgb(String(variableTheme['border-color']))},${variableTheme['border-opacity']})`
+
+  const bBase = budgetBaseline.value
+  const wThresh = warningThreshold.value
+  const cThresh = criticalThreshold.value
+  const firstFcLabel = categories.value[historyLogs.value.length] || 'FC'
 
   return {
     chart: {
@@ -51,7 +104,7 @@ const chartOptions = computed(() => {
     },
     colors: ['#1A73E8', '#00897B'],
     xaxis: {
-      categories,
+      categories: categories.value,
       labels: {
         style: { fontSize: '11px', colors: disabledTextColor },
         rotate: -45,
@@ -60,11 +113,11 @@ const chartOptions = computed(() => {
       tickAmount: 18,
     },
     yaxis: {
-      min: 1.10,
+      min: 0.40,
       max: 1.45,
       labels: {
         style: { fontSize: '12px', colors: disabledTextColor },
-        formatter: (v: number) => v.toFixed(3),
+        formatter: (v: number) => (v ? v.toFixed(3) : '0.000'),
       },
     },
     grid: {
@@ -80,38 +133,38 @@ const chartOptions = computed(() => {
     annotations: {
       yaxis: [
         {
-          y: budgetBaseline,
+          y: bBase,
           borderColor: '#5F6368',
           strokeDashArray: 4,
           label: {
-            text: `Budget Baseline: ${budgetBaseline} L/BCM`,
+            text: `Budget Baseline: ${bBase} L/BCM`,
             style: { color: '#5F6368', background: 'transparent', fontSize: '11px' },
           },
         },
         {
-          y: warningThreshold,
-          y2: criticalThreshold,
+          y: wThresh,
+          y2: cThresh,
           fillColor: '#FEF7E0',
           opacity: 0.35,
           label: {
-            text: `Warning Zone (+8% ~ ${warningThreshold})`,
+            text: `Warning Zone (+8% ~ ${wThresh})`,
             style: { color: '#fff', background: '#f97316', fontSize: '11px' },
           },
         },
         {
-          y: criticalThreshold,
+          y: cThresh,
           y2: 1.45,
           fillColor: '#FCE8E6',
           opacity: 0.35,
           label: {
-            text: `Critical Zone (+18% ~ ${criticalThreshold})`,
+            text: `Critical Zone (+18% ~ ${cThresh})`,
             style: { color: '#fff', background: '#ef4444', fontSize: '11px' },
           },
         },
       ],
-      xaxis: [
+      xaxis: firstFcLabel ? [
         {
-          x: '01/08 (FC)',
+          x: firstFcLabel,
           borderColor: '#00897B',
           strokeDashArray: 4,
           label: {
@@ -120,27 +173,39 @@ const chartOptions = computed(() => {
             style: { color: '#fff', background: '#00897B', fontSize: '11px' },
           },
         },
-      ],
+      ] : [],
     },
     tooltip: {
       y: {
-        formatter: (v: number | null) => (v ? `${v.toFixed(4)} L/BCM` : 'N/A'),
+        formatter: (v: number | null) => (v !== null && v !== undefined ? `${v.toFixed(4)} L/BCM` : 'N/A'),
       },
     },
   }
 })
 
-const series = [
-  { name: 'Actual Fuel Ratio (FMS)', data: actualFr },
-  { name: 'XGBoost 7-Day Forecast', data: forecastFr },
-]
+const series = computed(() => [
+  { name: 'Actual Fuel Ratio (FMS DB)', data: actualFrSeries.value },
+  { name: 'XGBoost 7-Day Forecast', data: forecastFrSeries.value },
+])
 </script>
 
 <template>
   <VCard>
     <VCardItem>
+      <template #append>
+        <VBtn
+          size="small"
+          variant="tonal"
+          color="primary"
+          prepend-icon="bx-refresh"
+          :loading="isLoading"
+          @click="loadChartData"
+        >
+          Refresh AI Chart
+        </VBtn>
+      </template>
       <VCardTitle>Time-Series Forecast & Dynamic Threshold Zones</VCardTitle>
-      <VCardSubtitle>Visualisasi 30 hari data historis + 7 hari proyeksi prediksi XGBoost</VCardSubtitle>
+      <VCardSubtitle>Visualisasi 30 hari data historis DB + 7 hari proyeksi prediksi XGBoost</VCardSubtitle>
     </VCardItem>
 
     <VCardText>

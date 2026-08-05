@@ -19,6 +19,8 @@ use App\Http\Controllers\Api\HealthController;
 Route::prefix('v1')->group(function () {
     // Fuel Ratio Forecast (XGBoost)
     Route::post('/forecast', [ForecastController::class, 'forecast']);
+    Route::post('/forecast-7days', [ForecastController::class, 'forecast7Days']);
+    Route::get('/forecast-history', [ForecastController::class, 'forecastHistory']);
 
     // Anomaly Detection (PyTorch Autoencoder)
     Route::post('/anomaly-detect', [AnomalyController::class, 'detect']);

@@ -3,12 +3,10 @@ import { useAiApi } from '@/composables/useAiApi'
 import type { CapacityResponse } from '@/composables/useAiApi'
 import LoadingFleetSummaryCard from '@/views/production/LoadingFleetSummaryCard.vue'
 import HaulingFleetSummaryCard from '@/views/production/HaulingFleetSummaryCard.vue'
-import CriticalEquipmentAlertBanner from '@/views/production/CriticalEquipmentAlertBanner.vue'
 import FleetCapacityOptimizerGrid from '@/views/production/FleetCapacityOptimizerGrid.vue'
-import SPOComplianceTable from '@/views/production/SPOComplianceTable.vue'
 import HourlyFleetCapacityMatrix from '@/views/production/HourlyFleetCapacityMatrix.vue'
 
-const { fetchCalculateCapacity } = useAiApi()
+const { fetchForecast, fetchCalculateCapacity } = useAiApi()
 
 const selectedShift = ref('Shift 1 (Day)')
 const shifts = ['Shift 1 (Day)', 'Shift 2 (Night)']
@@ -16,16 +14,29 @@ const shifts = ['Shift 1 (Day)', 'Shift 2 (Night)']
 const isLoading = ref(true)
 const capacityData = ref<CapacityResponse | null>(null)
 
+const loadingActivity = computed(() => {
+  if (!capacityData.value?.activity_breakdown) return null
+  return capacityData.value.activity_breakdown.find(a => a.activity.toUpperCase() === 'LOADING') ?? null
+})
+
+const haulingActivity = computed(() => {
+  if (!capacityData.value?.activity_breakdown) return null
+  return capacityData.value.activity_breakdown.find(a => a.activity.toUpperCase() === 'HAULING') ?? null
+})
+
 const syncData = async () => {
   isLoading.value = true
   try {
     const today = new Date().toISOString().slice(0, 10)
+    const forecast = await fetchForecast({ date: today }).catch(() => null)
+
     capacityData.value = await fetchCalculateCapacity({
       date: today,
-      forecast_prod_bcm: 250072,
-      curah_hujan_mm: 12.5,
+      forecast_prod_bcm: forecast?.daily_prod_bcm ?? 40000.0,
+      curah_hujan_mm: forecast?.features_input?.Curah_Hujan_mm ?? 0.0,
     })
-  } catch {
+  } catch (error) {
+    console.error('Sync AI Engine failed:', error)
     capacityData.value = null
   } finally {
     isLoading.value = false
@@ -38,15 +49,15 @@ onMounted(() => {
 </script>
 
 <template>
-  <VRow>
+  <div>
     <!-- Header Controls -->
-    <VCol cols="12" class="d-flex justify-space-between align-center flex-wrap gap-4">
+    <div class="d-flex justify-space-between align-center flex-wrap mb-6 gap-4">
       <div>
-        <h4 class="text-h4 font-weight-bold">
+        <h1 class="text-h4 font-weight-bold tracking-tight">
           Aktivitas Produksi & Kapasitas Fleet
-        </h4>
-        <p class="text-body-1 text-medium-emphasis mb-0">
-          Monitoring armada produktif, SPO compliance, dan optimasi kapasitas berbasis AI
+        </h1>
+        <p class="text-body-2 text-medium-emphasis mb-0">
+          Monitoring armada produktif & penentuan alokasi kapasitas berbasis AI Engine
         </p>
       </div>
 
@@ -65,49 +76,48 @@ onMounted(() => {
           :loading="isLoading"
           @click="syncData"
         >
-          Sync FMS
+          Sync AI Engine
         </VBtn>
       </div>
-    </VCol>
+    </div>
 
-    <!-- ZONE 1: REKAPITULASI FLEET PRODUKSI -->
-    <VCol
-      cols="12"
-      md="6"
-    >
-      <LoadingFleetSummaryCard />
-    </VCol>
+    <!-- MAIN GRID - 100% Dynamic API Powered -->
+    <VRow>
+      <!-- ZONE 1: REKAPITULASI FLEET PRODUKSI -->
+      <VCol cols="12" md="6">
+        <LoadingFleetSummaryCard
+          :activity-data="loadingActivity"
+          :is-loading="isLoading"
+        />
+      </VCol>
 
-    <VCol
-      cols="12"
-      md="6"
-    >
-      <HaulingFleetSummaryCard />
-    </VCol>
+      <VCol cols="12" md="6">
+        <HaulingFleetSummaryCard
+          :activity-data="haulingActivity"
+          :is-loading="isLoading"
+        />
+      </VCol>
 
-    <!-- ZONE 2: CRITICAL EQUIPMENT DETECTOR & SPO COMPLIANCE RADAR -->
-    <VCol cols="12">
-      <CriticalEquipmentAlertBanner />
-    </VCol>
+      <!-- ZONE 2: COMBINED FLEET CAPACITY & FUEL ALLOCATION OPTIMIZER -->
+      <VCol cols="12" class="mt-2">
+        <FleetCapacityOptimizerGrid
+          :activity-breakdown="capacityData?.activity_breakdown ?? null"
+          :total-fuel="capacityData?.total_combined_fuel_lday ?? null"
+        />
+      </VCol>
 
-    <!-- ZONE 3: COMBINED FLEET CAPACITY & FUEL ALLOCATION OPTIMIZER -->
-    <VCol cols="12">
-      <FleetCapacityOptimizerGrid
-        :activity-breakdown="capacityData?.activity_breakdown ?? null"
-        :total-fuel="capacityData?.total_combined_fuel_lday ?? null"
-      />
-    </VCol>
-
-    <!-- ZONE 4: TABEL AUDIT SPO COMPLIANCE -->
-    <VCol cols="12">
-      <SPOComplianceTable />
-    </VCol>
-
-    <!-- ZONE 5: HOURLY FLEET CAPACITY MATRIX TABLE -->
-    <VCol cols="12">
-      <HourlyFleetCapacityMatrix
-        :unit-breakdown="capacityData?.unit_breakdown ?? null"
-      />
-    </VCol>
-  </VRow>
+      <!-- ZONE 3: HOURLY FLEET CAPACITY MATRIX TABLE -->
+      <VCol cols="12" class="mt-2">
+        <HourlyFleetCapacityMatrix
+          :unit-breakdown="capacityData?.unit_breakdown ?? null"
+        />
+      </VCol>
+    </VRow>
+  </div>
 </template>
+
+<style scoped>
+.tracking-tight {
+  letter-spacing: -0.5px;
+}
+</style>

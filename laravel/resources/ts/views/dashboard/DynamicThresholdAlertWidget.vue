@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { useTheme } from 'vuetify'
-import { hexToRgb } from '@core/utils/colorConverter'
+import { computed } from 'vue'
 
 interface Props {
   actualFr: number
@@ -16,7 +15,7 @@ const props = withDefaults(defineProps<Props>(), {
   budgetBaseline: 1.1576,
   warningThreshold: 1.2503,
   criticalThreshold: 1.3660,
-  excessFuelLiters: 30612,
+  excessFuelLiters: 0,
   isLoading: false,
 })
 
@@ -67,51 +66,56 @@ const deviationPct = computed(() => {
     </VCardItem>
 
     <VCardText>
-      <div class="d-flex align-center gap-4 mb-3">
-        <div>
-          <span class="text-body-2 text-medium-emphasis">Current FR</span>
-          <h3
-            class="text-h3 font-weight-bold"
-            :style="{ color: statusConfig.color }"
+      <div v-if="isLoading" class="d-flex justify-center my-4">
+        <VProgressCircular indeterminate color="primary" />
+      </div>
+      <template v-else>
+        <div class="d-flex align-center gap-4 mb-3">
+          <div>
+            <span class="text-body-2 text-medium-emphasis">Current FR</span>
+            <h3
+              class="text-h3 font-weight-bold"
+              :style="{ color: statusConfig.color }"
+            >
+              {{ props.actualFr.toFixed(4) }}
+            </h3>
+            <span class="text-body-2 text-medium-emphasis">L/BCM</span>
+          </div>
+          <VSpacer />
+          <VChip
+            :color="status === 'CRITICAL' ? 'error' : status === 'WARNING' ? 'warning' : 'success'"
+            variant="elevated"
+            size="large"
+            class="font-weight-bold"
           >
-            {{ props.actualFr.toFixed(4) }}
-          </h3>
-          <span class="text-body-2 text-medium-emphasis">L/BCM</span>
+            <VIcon
+              start
+              :icon="statusConfig.icon"
+            />
+            {{ statusConfig.label }}
+          </VChip>
         </div>
-        <VSpacer />
-        <VChip
-          :color="status === 'CRITICAL' ? 'error' : status === 'WARNING' ? 'warning' : 'success'"
-          variant="elevated"
-          size="large"
-          class="font-weight-bold"
-        >
-          <VIcon
-            start
-            :icon="statusConfig.icon"
-          />
-          {{ statusConfig.label }}
-        </VChip>
-      </div>
 
-      <VDivider class="mb-3" />
+        <VDivider class="mb-3" />
 
-      <div class="d-flex justify-space-between text-body-2">
-        <div>
-          <span class="text-medium-emphasis">Budget Baseline:</span>
-          <strong class="ms-1">{{ props.budgetBaseline.toFixed(4) }} L/BCM</strong>
+        <div class="d-flex justify-space-between text-body-2">
+          <div>
+            <span class="text-medium-emphasis">Budget Baseline:</span>
+            <strong class="ms-1">{{ props.budgetBaseline.toFixed(4) }} L/BCM</strong>
+          </div>
+          <div>
+            <span class="text-medium-emphasis">Deviasi:</span>
+            <strong
+              class="ms-1"
+              :style="{ color: statusConfig.color }"
+            >{{ Number(deviationPct) > 0 ? '+' : '' }}{{ deviationPct }}%</strong>
+          </div>
+          <div>
+            <span class="text-medium-emphasis">Excess Fuel:</span>
+            <strong class="ms-1 text-error">+{{ props.excessFuelLiters.toLocaleString('id-ID') }} L</strong>
+          </div>
         </div>
-        <div>
-          <span class="text-medium-emphasis">Deviasi:</span>
-          <strong
-            class="ms-1"
-            :style="{ color: statusConfig.color }"
-          >+{{ deviationPct }}%</strong>
-        </div>
-        <div>
-          <span class="text-medium-emphasis">Excess Fuel:</span>
-          <strong class="ms-1 text-error">+{{ props.excessFuelLiters.toLocaleString('id-ID') }} L</strong>
-        </div>
-      </div>
+      </template>
     </VCardText>
   </VCard>
 </template>

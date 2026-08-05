@@ -15,23 +15,18 @@ const props = withDefaults(defineProps<Props>(), {
 
 const vuetifyTheme = useTheme()
 
-// Default data (fallback when API unavailable)
-const defaultLabels = ['Hauling', 'Supporting', 'Loading', 'Dewatering']
-const defaultSeries = [652282, 200582, 50952, 113086]
-const defaultTotal = 1016903
-
 const chartLabels = computed(() => {
-  if (!props.activityBreakdown || props.activityBreakdown.length === 0) return defaultLabels
+  if (!props.activityBreakdown || props.activityBreakdown.length === 0) return []
   return props.activityBreakdown.map(a => a.activity.charAt(0).toUpperCase() + a.activity.slice(1).toLowerCase())
 })
 
 const chartSeries = computed(() => {
-  if (!props.activityBreakdown || props.activityBreakdown.length === 0) return defaultSeries
+  if (!props.activityBreakdown || props.activityBreakdown.length === 0) return []
   return props.activityBreakdown.map(a => Math.round(a.combined_fuel_lday))
 })
 
 const totalFuelDisplay = computed(() => {
-  const total = props.totalFuel ?? defaultTotal
+  const total = props.totalFuel ?? 0
   return total.toLocaleString('id-ID')
 })
 
@@ -98,7 +93,12 @@ const chartOptions = computed(() => {
       </VCardSubtitle>
     </VCardItem>
     <VCardText>
+      <div v-if="chartSeries.length === 0" class="d-flex flex-column align-center justify-center py-8 text-medium-emphasis">
+        <VIcon icon="bx-pie-chart-alt-2" size="40" class="mb-2 opacity-50" />
+        <span>Tidak ada data alokasi BBM aktivitas</span>
+      </div>
       <VueApexCharts
+        v-else
         type="donut"
         :height="340"
         :options="chartOptions"

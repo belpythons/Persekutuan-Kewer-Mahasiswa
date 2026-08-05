@@ -31,7 +31,8 @@ const defaultUnits: AnomalousUnit[] = [
 ]
 
 const topUnits = computed<AnomalousUnit[]>(() => {
-  if (!props.spikeReport || props.spikeReport.length === 0) return defaultUnits
+  if (!props.spikeReport) return []
+  if (props.spikeReport.length === 0) return []
 
   return props.spikeReport
     .sort((a, b) => b.total_spikes - a.total_spikes)
@@ -110,9 +111,16 @@ const fcDeviation = (normal: number, spike: number) => {
           </tr>
         </thead>
         <tbody>
+          <tr v-if="topUnits.length === 0">
+            <td colspan="7" class="text-center py-6 text-medium-emphasis">
+              <VIcon icon="bx-check-shield" size="32" class="mb-1 text-success d-block mx-auto" />
+              Tidak ada anomali spike unit terdeteksi hari ini.
+            </td>
+          </tr>
           <tr
             v-for="unit in topUnits"
             :key="unit.rank"
+            v-else
           >
             <td>
               <VAvatar

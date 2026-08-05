@@ -21,7 +21,7 @@ class AnomalyController extends Controller
     public function detect(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'records' => 'required|array|min:1',
+            'records' => 'present|array',
             'records.*.Date' => 'required|string',
             'records.*.Unit' => 'required|string',
             'records.*.Activity' => 'required|string',

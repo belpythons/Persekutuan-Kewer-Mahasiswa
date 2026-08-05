@@ -30,6 +30,34 @@ export interface ForecastResponse {
   error?: string
 }
 
+export interface Forecast7DaysResponse {
+  start_date: string
+  end_date: string
+  forecast_horizon_days: number
+  summary: {
+    avg_forecast_fr: number
+    max_forecast_fr: number
+    min_forecast_fr: number
+    warning_alert_days: number
+    critical_alert_days: number
+  }
+  daily_forecasts: ForecastResponse[]
+}
+
+export interface ForecastHistoryItem {
+  log_date: string
+  actual_fr: number
+  forecast_fr: number
+  status: string
+  daily_prod_bcm: number
+  haul_distance_m: number
+}
+
+export interface ForecastHistoryResponse {
+  total: number
+  historical_logs: ForecastHistoryItem[]
+}
+
 export interface AnomalyRecord {
   Date: string
   Unit: string
@@ -192,6 +220,22 @@ export function useAiApi() {
   }
 
   /**
+   * POST /api/v1/forecast-7days — Prediksi Horizon 7-Hari Fuel Ratio (XGBoost)
+   */
+  async function fetchForecast7Days(startDate?: string): Promise<Forecast7DaysResponse> {
+    return apiRequest<Forecast7DaysResponse>('POST', '/api/v1/forecast-7days', {
+      start_date: startDate || new Date().toISOString().slice(0, 10),
+    })
+  }
+
+  /**
+   * GET /api/v1/forecast-history — Log historis Fuel Ratio harian dari DB
+   */
+  async function fetchForecastHistory(days = 30): Promise<ForecastHistoryResponse> {
+    return apiRequest<ForecastHistoryResponse>('GET', `/api/v1/forecast-history?days=${days}`)
+  }
+
+  /**
    * POST /api/v1/anomaly-detect — Deteksi spike BBM (PyTorch Autoencoder)
    */
   async function fetchAnomalyDetect(records: AnomalyRecord[]): Promise<AnomalyDetectResponse> {
@@ -221,6 +265,8 @@ export function useAiApi() {
 
   return {
     fetchForecast,
+    fetchForecast7Days,
+    fetchForecastHistory,
     fetchAnomalyDetect,
     fetchCalculateCapacity,
     fetchAiHealth,

@@ -75,6 +75,10 @@ const resetDefaults = () => {
   aiResult.value = null
   errorMsg.value = ''
 }
+
+onMounted(() => {
+  runForecast()
+})
 </script>
 
 <template>

@@ -51,16 +51,38 @@ class FuelRatioAiClient
     /**
      * Prediksi Fuel Ratio Harian (XGBoost Engine)
      */
-    public function getForecast(string $date, float $rainMm, float $tempC, float $windKmh, float $haulM, float $prodBcm): array
+    public function getForecast(string $date, ?float $rainMm = null, ?float $tempC = null, ?float $windKmh = null, ?float $haulM = null, ?float $prodBcm = null): array
     {
-        return $this->request('post', '/api/v1/forecast', [
+        $payload = array_filter([
             'date' => $date,
             'curah_hujan_mm' => $rainMm,
             'temp_max_c' => $tempC,
             'kecepatan_angin_kmh' => $windKmh,
             'haul_distance_m' => $haulM,
             'daily_prod_bcm' => $prodBcm,
-        ]);
+        ], fn($v) => $v !== null);
+
+        return $this->request('post', '/api/v1/forecast', $payload);
+    }
+
+    /**
+     * Prediksi Horizon 7 Hari Fuel Ratio (XGBoost Engine)
+     */
+    public function getForecast7Days(?string $startDate = null): array
+    {
+        $payload = array_filter([
+            'start_date' => $startDate ?? date('Y-m-d'),
+        ], fn($v) => $v !== null);
+
+        return $this->request('post', '/api/v1/forecast-7days', $payload);
+    }
+
+    /**
+     * Ambil Log Historis Fuel Ratio Harian dari Database
+     */
+    public function getForecastHistory(int $days = 30): array
+    {
+        return $this->request('get', "/api/v1/forecast-history?days={$days}");
     }
 
     /**

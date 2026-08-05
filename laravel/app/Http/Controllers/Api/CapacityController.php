@@ -22,16 +22,19 @@ class CapacityController extends Controller
     {
         $validated = $request->validate([
             'date' => 'required|date_format:Y-m-d',
-            'forecast_prod_bcm' => 'required|numeric|min:0',
-            'curah_hujan_mm' => 'required|numeric|min:0',
+            'forecast_prod_bcm' => 'nullable|numeric|min:0',
+            'curah_hujan_mm' => 'nullable|numeric|min:0',
             'nn_spike_count_by_unit' => 'nullable|array',
         ]);
 
         try {
+            $forecastProdBcm = (float) ($validated['forecast_prod_bcm'] ?? 40000.0);
+            $curahHujanMm = (float) ($validated['curah_hujan_mm'] ?? 0.0);
+
             $result = $this->aiClient->calculateCapacity(
                 $validated['date'],
-                $validated['forecast_prod_bcm'],
-                $validated['curah_hujan_mm'],
+                $forecastProdBcm,
+                $curahHujanMm,
                 $validated['nn_spike_count_by_unit'] ?? null,
             );
 

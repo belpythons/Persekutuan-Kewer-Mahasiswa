@@ -20,14 +20,6 @@ interface FleetAllocation {
   icon: string
 }
 
-// Default data (fallback)
-const defaultAllocations: FleetAllocation[] = [
-  { activity: 'Loading', color: 'primary', requiredUnits: 22, totalPopulation: 70, dailyFuelL: 50952.2, icon: 'bx-loader-circle' },
-  { activity: 'Hauling', color: 'info', requiredUnits: 94, totalPopulation: 415, dailyFuelL: 652282.4, icon: 'bx-car' },
-  { activity: 'Supporting', color: 'warning', requiredUnits: 183, totalPopulation: 183, dailyFuelL: 200582.4, icon: 'bx-wrench' },
-  { activity: 'Dewatering', color: 'secondary', requiredUnits: 175, totalPopulation: 175, dailyFuelL: 113085.8, icon: 'bx-droplet' },
-]
-
 const activityIcon = (activity: string) => {
   const map: Record<string, string> = {
     loading: 'bx-loader-circle',
@@ -49,7 +41,7 @@ const activityColor = (activity: string) => {
 }
 
 const allocations = computed<FleetAllocation[]>(() => {
-  if (!props.activityBreakdown || props.activityBreakdown.length === 0) return defaultAllocations
+  if (!props.activityBreakdown || props.activityBreakdown.length === 0) return []
 
   return props.activityBreakdown.map(item => ({
     activity: item.activity.charAt(0).toUpperCase() + item.activity.slice(1).toLowerCase(),
