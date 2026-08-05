@@ -45,3 +45,30 @@ def calculate_combined_capacity_allocation(request: CapacityRequest, db: Session
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Gagal menghitung alokasi kapasitas armada: {str(e)}"
         )
+
+class GlobalTuningRequest(BaseModel):
+    date: str = Field(..., example="2026-08-05", description="Tanggal operasional (YYYY-MM-DD)")
+    forecast_prod_bcm: Optional[float] = Field(None, example=40000.0, description="Target produksi BCM (Opsional, otomatis dari DB jika kosong)")
+    curah_hujan_mm: Optional[float] = Field(None, example=10.0, description="Prakiraan curah hujan mm (Opsional, otomatis dari DB jika kosong)")
+    auto_scan_anomalies: bool = Field(True, description="Otomatis menyertakan data spike anomali Autoencoder harian")
+
+@router.post("/global-capacity-tuning", status_code=status.HTTP_200_OK)
+def perform_global_capacity_tuning(request: GlobalTuningRequest, db: Session = Depends(get_db)):
+    """
+    Melakukan Global Tuning & Analisis Variansi Kapasitas & BBM seluruh armada (324 unit)
+    pada tanggal operasional tertentu, dibandingkan dengan pemakaian harian aktual per-unit dari database.
+    """
+    try:
+        result = capacity_engine.perform_global_tuning(
+            date_str=request.date,
+            forecast_prod_bcm=request.forecast_prod_bcm,
+            curah_hujan_mm=request.curah_hujan_mm,
+            auto_scan_anomalies=request.auto_scan_anomalies,
+            db_session=db
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Gagal melakukan global capacity tuning: {str(e)}"
+        )

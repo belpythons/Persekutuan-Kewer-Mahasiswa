@@ -17,7 +17,7 @@ def generate_sql_dump():
     db = SessionLocal()
     sql_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "database_schema_and_seed.sql")
     
-    print(f"Generating 3NF Granular High-Scale SQL seed dump at {sql_file_path}...")
+    print(f"Generating 3NF Normalized High-Scale SQL seed dump at {sql_file_path}...")
     
     tables = [
         "equipment_catalogs",
@@ -28,14 +28,13 @@ def generate_sql_dump():
         "weather_daily_logs",
         "daily_forecast_logs",
         "unit_anomaly_spikes",
-        "capacity_allocations",
-        "capacity_unit_allocations"
+        "capacity_allocations"
     ]
     
     with open(sql_file_path, "w", encoding="utf-8") as f:
         f.write("-- ==============================================================================\n")
-        f.write("-- KIDECO FUEL RATIO OPTIMIZATION SYSTEM - HIGH-SCALE GRANULAR DATABASE DUMP\n")
-        f.write("-- 3NF Normalized, Per-Unit & Per-Hour Productivity/Fuel Metrics, Foreign Keys & B-Tree Indexes\n")
+        f.write("-- KIDECO FUEL RATIO OPTIMIZATION SYSTEM - HIGH-SCALE NORMALIZED DATABASE DUMP\n")
+        f.write("-- 3NF Normalized, Foreign Key Constraints & B-Tree Composite Indexes\n")
         f.write("-- Ground-Truth Data Extracted from: UPDATE_Fuel ratio calculation 2026 dummy data.xlsx\n")
         f.write("-- Compatible with: PostgreSQL & MySQL / MariaDB / SQLite\n")
         f.write("-- ==============================================================================\n\n")
@@ -143,27 +142,6 @@ CREATE TABLE IF NOT EXISTS capacity_allocations (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_capacity_date ON capacity_allocations(log_date);
-
-CREATE TABLE IF NOT EXISTS capacity_unit_allocations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    capacity_allocation_id INTEGER NOT NULL,
-    log_date DATE NOT NULL,
-    unit_name VARCHAR(100) NOT NULL,
-    activity VARCHAR(50) NOT NULL,
-    total_qty INTEGER NOT NULL,
-    operating_units INTEGER NOT NULL,
-    prod_bcm_hr_unit DOUBLE PRECISION NOT NULL,
-    prod_bcm_hr_total DOUBLE PRECISION NOT NULL,
-    prod_bcm_day_total DOUBLE PRECISION NOT NULL,
-    fuel_l_hr_unit DOUBLE PRECISION NOT NULL,
-    fuel_l_hr_total DOUBLE PRECISION NOT NULL,
-    fuel_l_day_total DOUBLE PRECISION NOT NULL,
-    unit_fr DOUBLE PRECISION NOT NULL,
-    spike_count_nn INTEGER NOT NULL DEFAULT 0,
-    FOREIGN KEY (capacity_allocation_id) REFERENCES capacity_allocations(id) ON DELETE CASCADE
-);
-CREATE INDEX IF NOT EXISTS idx_cap_unit_date_unit ON capacity_unit_allocations(log_date, unit_name);
-CREATE INDEX IF NOT EXISTS idx_cap_unit_date_act ON capacity_unit_allocations(log_date, activity);
 \n""")
 
         # Table Data Seed INSERT statements

@@ -3,30 +3,22 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     """
-    Konfigurasi Environment Microservice AI (Supabase Cloud PostgreSQL + Local Fallback)
+    Konfigurasi Environment Microservice AI
     """
     APP_NAME: str = "KIDECO Fuel Ratio AI Service"
-    APP_ENV: str = os.getenv("APP_ENV", "development")
-    DEBUG: bool = os.getenv("DEBUG", "True").lower() == "true"
+    APP_ENV: str = "development"
+    DEBUG: bool = True
     
-    # Supabase Configuration
-    SUPABASE_URL: str = os.getenv("SUPABASE_URL", "https://nxgurgphgoelraasauqt.supabase.co")
-    SUPABASE_KEY: str = os.getenv("SUPABASE_KEY", "sb_publishable_iRCaHzS3-hjk9id4GjIRKg_oMx-UrrP")
-    SUPABASE_PROJECT_ID: str = os.getenv("SUPABASE_PROJECT_ID", "nxgurgphgoelraasauqt")
-    
-    # PostgreSQL / Supabase Connection Pool
-    POSTGRES_USER: str = os.getenv("POSTGRES_USER", "postgres")
-    POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD", "")
-    POSTGRES_HOST: str = os.getenv("POSTGRES_HOST", "db.nxgurgphgoelraasauqt.supabase.co")
-    POSTGRES_PORT: int = int(os.getenv("POSTGRES_PORT", "5432"))
-    POSTGRES_DB: str = os.getenv("POSTGRES_DB", "postgres")
+    # PostgreSQL Configuration
+    POSTGRES_USER: str = "postgres.nxgurgphgoelraasauqt"
+    POSTGRES_PASSWORD: str = "SiG8AHzB5E4BxtV2"
+    POSTGRES_HOST: str = "aws-0-ap-southeast-1.pooler.supabase.com"
+    POSTGRES_PORT: int = 6543
+    POSTGRES_DB: str = "postgres"
     
     @property
     def DATABASE_URL(self) -> str:
-        if self.POSTGRES_PASSWORD:
-            return f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
-        # Direct Supabase PostgreSQL URL if password supplied in env
-        return f"postgresql://{self.POSTGRES_USER}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+        return f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
 
     class Config:
         env_file = ".env"

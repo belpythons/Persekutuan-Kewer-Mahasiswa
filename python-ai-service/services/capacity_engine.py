@@ -9,9 +9,13 @@ import logging
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from database import SessionLocal
-from models_db import CapacityAllocation, CapacityUnitAllocation, EquipmentCatalog
+from models_db import (
+    CapacityAllocation, EquipmentCatalog, LoadingUnitBaseline, HaulingUnitBaseline,
+    WeatherDailyLog, DailyForecastLog, UnitAnomalySpike
+)
 from services.forecasting import forecasting_service
 from services.autoencoder import autoencoder_service
+from operational_constants import OPERATING_HOURS_PER_DAY, NN_SPIKE_BUFFER_PCT
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +37,54 @@ def calculate_rain_derating_non_linear(rainfall_mm: float) -> float:
     else:
         return 0.60
 
+def validate_and_normalize_equipment_data(equipment_list: List[Dict[str, Any]], db) -> List[Dict[str, Any]]:
+    """
+    Validator & Normalizer Data Armada (Single Source of Truth: Database Supabase):
+    Murni membaca nilai dari Database Supabase. Jika ada baris dengan prod_bcmhr null / fc_lhr null,
+    validator melakukan auto-fill murni dari tabel baseline DB (LoadingUnitBaseline / HaulingUnitBaseline).
+    """
+    normalized_list = []
+    
+    # Query DB baselines jika diperlukan fallback null
+    loading_baselines = {}
+    hauling_baselines = {}
+    if db:
+        try:
+            loading_baselines = {b.unit_code: b for b in db.query(LoadingUnitBaseline).all()}
+            hauling_baselines = {b.unit_code: b for b in db.query(HaulingUnitBaseline).all()}
+        except Exception as e:
+            logger.warning(f"Gagal me-load DB unit baselines untuk validation fallback: {e}")
+
+    for item in equipment_list:
+        unit_name = str(item.get("unit_name", "")).strip()
+        activity = str(item.get("activity", "SUPPORT")).strip().upper()
+        qty = max(0, int(item.get("qty") or 0))
+        fc_lhr = float(item.get("fc_lhr") or 0.0)
+        prod_bcmhr = float(item.get("prod_bcmhr") or 0.0)
+
+        # Database Baseline Auto-Fill jika prod_bcmhr bernilai 0/NULL di catalog DB
+        if prod_bcmhr == 0.0 and activity in ["LOADING", "HAULING"]:
+            if activity == "LOADING" and unit_name in loading_baselines:
+                prod_bcmhr = float(loading_baselines[unit_name].prod_bcmhr)
+            elif activity == "HAULING" and unit_name in hauling_baselines:
+                prod_bcmhr = float(hauling_baselines[unit_name].prod_bcmhr)
+
+        if fc_lhr == 0.0:
+            if activity == "LOADING" and unit_name in loading_baselines:
+                fc_lhr = float(loading_baselines[unit_name].fc_lhr)
+            elif activity == "HAULING" and unit_name in hauling_baselines:
+                fc_lhr = float(hauling_baselines[unit_name].fc_lhr)
+
+        normalized_list.append({
+            "unit_name": unit_name,
+            "qty": qty,
+            "activity": activity,
+            "fc_lhr": fc_lhr,
+            "prod_bcmhr": prod_bcmhr
+        })
+
+    return normalized_list
+
 class CombinedCapacityEngine:
     def __init__(self):
         pass
@@ -48,7 +100,7 @@ class CombinedCapacityEngine:
     ) -> Dict[str, Any]:
         """
         Mengombinasikan XGBoost Forecast + PyTorch Autoencoder Spikes + Non-linear Rain Derating
-        untuk menghitung alokasi kapasitas armada Rinci Per-Unit, Per-Jam, dan Parsing 24-Jam Timeline Operasional.
+        untuk menghitung alokasi kapasitas armada dan alokasi BBM harian.
         """
         if db_session is None:
             db = SessionLocal()
@@ -58,32 +110,33 @@ class CombinedCapacityEngine:
             close_db = False
 
         try:
-            # 1. Fetch equipment catalogs dari DB jika tidak dipass
+            # 1. Murni fetch equipment catalogs dari DB jika tidak dipass
             if not equipment_list:
                 eq_records = db.query(EquipmentCatalog).all()
-                if eq_records:
-                    equipment_list = [
-                        {
-                            "unit_name": e.unit_name,
-                            "qty": e.qty,
-                            "activity": e.activity,
-                            "fc_lhr": e.fc_lhr,
-                            "prod_bcmhr": getattr(e, "prod_bcmhr", 100.0) if hasattr(e, "prod_bcmhr") else 100.0
-                        }
-                        for e in eq_records
-                    ]
-                else:
-                    equipment_list = [
-                        {"unit_name": "EX2600-6", "qty": 1, "activity": "LOADING", "fc_lhr": 190.0, "prod_bcmhr": 920.0},
-                        {"unit_name": "PC1250-11R", "qty": 7, "activity": "LOADING", "fc_lhr": 93.33, "prod_bcmhr": 310.0},
-                        {"unit_name": "PC2000-11R", "qty": 17, "activity": "LOADING", "fc_lhr": 125.0, "prod_bcmhr": 820.0},
-                        {"unit_name": "HD785-7", "qty": 205, "activity": "HAULING", "fc_lhr": 75.0, "prod_bcmhr": 109.56},
-                        {"unit_name": "Dozer375", "qty": 9, "activity": "SUPPORT", "fc_lhr": 65.75, "prod_bcmhr": 0.0},
-                        {"unit_name": "Water Pump", "qty": 85, "activity": "DEWATERING", "fc_lhr": 40.0, "prod_bcmhr": 0.0}
-                    ]
+                if not eq_records:
+                    # Auto-seed ground truth database jika belum ada data
+                    from seed_database import seed_database
+                    logger.info("Equipment catalog di database kosong. Menjalankan auto-seeding data ground-truth...")
+                    seed_database()
+                    eq_records = db.query(EquipmentCatalog).all()
+                    
+                equipment_list = [
+                    {
+                        "unit_name": e.unit_name,
+                        "qty": e.qty,
+                        "activity": e.activity,
+                        "fc_lhr": e.fc_lhr,
+                        "prod_bcmhr": getattr(e, "prod_bcmhr", 0.0) or 0.0
+                    }
+                    for e in eq_records
+                ]
+
+            # Jalankan Validator & Normalizer murni dari DB
+            equipment_list = validate_and_normalize_equipment_data(equipment_list, db)
 
             df_fleet = pd.DataFrame(equipment_list)
             
+            # Ensure prod_bcmhr default for support/dewatering
             if 'prod_bcmhr' not in df_fleet.columns:
                 df_fleet['prod_bcmhr'] = 0.0
             df_fleet['prod_bcmhr'] = df_fleet['prod_bcmhr'].fillna(0.0)
@@ -91,141 +144,50 @@ class CombinedCapacityEngine:
             # 2. Hitung Derating Hujan Non-Linear
             rain_derating = calculate_rain_derating_non_linear(curah_hujan_mm)
 
-            # 3. Hitung Kapasitas Terpasang & Efektif Total
+            # 3. Hitung Kapasitas Terpasang & Efektif per Unit
             df_fleet["Installed_Prod_Cap_BCMhr"] = df_fleet["qty"] * df_fleet["prod_bcmhr"]
-            df_fleet["Effective_Prod_Cap_BCMday"] = df_fleet["Installed_Prod_Cap_BCMhr"] * 20.0 * rain_derating
+            df_fleet["Effective_Prod_Cap_BCMday"] = df_fleet["Installed_Prod_Cap_BCMhr"] * OPERATING_HOURS_PER_DAY * rain_derating
 
             total_installed_bcmhr = float(df_fleet["Installed_Prod_Cap_BCMhr"].sum())
             total_effective_bcmday = float(df_fleet["Effective_Prod_Cap_BCMday"].sum())
 
+            # Avoid division by zero
             if total_effective_bcmday == 0:
                 total_effective_bcmday = max(forecast_prod_bcm * 1.2, 50000.0)
 
             # 4. Utilisasi & Operating Units Required
             utilization_pct = min(100.0, max(10.0, (forecast_prod_bcm / total_effective_bcmday) * 100.0))
+            
             total_fleet_qty = int(df_fleet["qty"].sum())
-            operating_units_total = int(math.ceil((utilization_pct / 100.0) * total_fleet_qty))
+            operating_units = int(math.ceil((utilization_pct / 100.0) * total_fleet_qty))
 
-            # 5. Rincian Kalkulasi PER-UNIT & PER-JAM untuk Setiap Tipe Alat
+            # 5. Combined Fuel Allocation (Base + NN Spike Adjustment)
             if not nn_spike_count_by_unit:
                 nn_spike_count_by_unit = {}
 
-            unit_breakdown = []
-            for _, row in df_fleet.iterrows():
-                u_name = row["unit_name"]
-                u_act = row["activity"]
-                u_qty = int(row["qty"])
-                u_fc_lhr = float(row["fc_lhr"])
-                u_prod_bcmhr = float(row["prod_bcmhr"])
-                
-                u_op_units = max(1 if u_qty > 0 and utilization_pct > 0 else 0, int(math.ceil((utilization_pct / 100.0) * u_qty)))
-                u_op_units = min(u_qty, u_op_units)
-                
-                u_prod_hr_total = u_op_units * u_prod_bcmhr
-                u_prod_day_total = u_prod_hr_total * 20.0 * rain_derating
-                
-                u_fuel_hr_total = u_op_units * u_fc_lhr
-                u_spike_count = int(nn_spike_count_by_unit.get(u_name, 0))
-                
-                u_base_fuel_day = u_fuel_hr_total * 20.0 * (utilization_pct / 100.0)
-                u_spike_buffer_day = u_base_fuel_day * (u_spike_count * 0.15)
-                u_fuel_day_total = u_base_fuel_day + u_spike_buffer_day
-                
-                u_fr = round(u_fuel_day_total / max(1.0, u_prod_day_total), 4) if u_prod_day_total > 0 else round(u_fc_lhr / max(1.0, u_prod_bcmhr), 4)
+            # Base Fuel Consumption (L/day) = Qty * jam_operasional * FC_Lhr * (Utilization %)
+            df_fleet["Base_Fuel_Lday"] = df_fleet["qty"] * OPERATING_HOURS_PER_DAY * df_fleet["fc_lhr"] * (utilization_pct / 100.0)
+            
+            # Adjustment Buffer BBM jika NN Anomaly Spike terdeteksi (+15% buffer per spike unit)
+            df_fleet["Spike_Count_NN"] = df_fleet["unit_name"].map(lambda u: nn_spike_count_by_unit.get(u, 0)).fillna(0)
+            df_fleet["Fuel_Buffer_Spike_Lday"] = df_fleet["Base_Fuel_Lday"] * (df_fleet["Spike_Count_NN"] * NN_SPIKE_BUFFER_PCT)
+            df_fleet["Combined_Fuel_Lday"] = df_fleet["Base_Fuel_Lday"] + df_fleet["Fuel_Buffer_Spike_Lday"]
 
-                unit_breakdown.append({
-                    "unit_name": u_name,
-                    "activity": u_act,
-                    "total_qty": u_qty,
-                    "operating_units": u_op_units,
-                    "prod_bcm_hr_unit": round(u_prod_bcmhr, 2),
-                    "prod_bcm_hr_total": round(u_prod_hr_total, 2),
-                    "prod_bcm_day_total": round(u_prod_day_total, 2),
-                    "fuel_l_hr_unit": round(u_fc_lhr, 2),
-                    "fuel_l_hr_total": round(u_fuel_hr_total, 2),
-                    "fuel_l_day_total": round(u_fuel_day_total, 2),
-                    "unit_fr": u_fr,
-                    "spike_count_nn": u_spike_count
-                })
-
-            df_unit_breakdown = pd.DataFrame(unit_breakdown)
-            total_combined_fuel_lday = float(df_unit_breakdown["fuel_l_day_total"].sum())
+            total_combined_fuel_lday = float(df_fleet["Combined_Fuel_Lday"].sum())
 
             # 6. Breakdown Alokasi Kapasitas per Aktivitas (LOADING, HAULING, SUPPORT, DEWATERING)
             activity_summary = []
-            for act, group in df_unit_breakdown.groupby("activity"):
+            for act, group in df_fleet.groupby("activity"):
                 activity_summary.append({
                     "activity": act,
                     "unit_types_count": int(group["unit_name"].nunique()),
-                    "total_fleet_qty": int(group["total_qty"].sum()),
-                    "operating_units": int(group["operating_units"].sum()),
-                    "prod_bcm_hr_total": round(float(group["prod_bcm_hr_total"].sum()), 2),
-                    "prod_bcm_day_effective": round(float(group["prod_bcm_day_total"].sum()), 2),
-                    "fuel_l_hr_total": round(float(group["fuel_l_hr_total"].sum()), 2),
-                    "combined_fuel_lday": round(float(group["fuel_l_day_total"].sum()), 2)
+                    "total_fleet_qty": int(group["qty"].sum()),
+                    "operating_units": int(math.ceil((utilization_pct / 100.0) * group["qty"].sum())),
+                    "installed_cap_bcmhr": round(float(group["Installed_Prod_Cap_BCMhr"].sum()), 2),
+                    "effective_cap_bcmday": round(float(group["Effective_Prod_Cap_BCMday"].sum()), 2),
+                    "base_fuel_lday": round(float(group["Base_Fuel_Lday"].sum()), 2),
+                    "combined_fuel_lday": round(float(group["Combined_Fuel_Lday"].sum()), 2)
                 })
-
-            # 7. PARSING 24-JAM TIMELINE OPERASIONAL (SHIFT 1 & SHIFT 2)
-            # Jam operasional tambang: Shift 1 (06:00 - 18:00), Shift 2 (18:00 - 06:00)
-            # 20 jam aktif operasional, 4 jam istirahat/maintenance (misal jam 05, 11, 17, 23)
-            hourly_24h_timeline = []
-            non_operating_hours = {5, 11, 17, 23}  # Maintenance / Shift change hours
-            
-            for h in range(24):
-                clock_hour = (6 + h) % 24  # Starts at 06:00 AM
-                shift_name = "SHIFT_1" if h < 12 else "SHIFT_2"
-                is_op = clock_hour not in non_operating_hours
-                
-                label = f"{clock_hour:02d}:00 - {(clock_hour + 1) % 24:02d}:00"
-                
-                # BCM Target & Liter Fuel Budget for this specific hour
-                if is_op:
-                    h_bcm_target = round(float(df_unit_breakdown["prod_bcm_hr_total"].sum()) * rain_derating, 2)
-                    h_fuel_budget = round(float(df_unit_breakdown["fuel_l_day_total"].sum()) / 20.0, 2)
-                else:
-                    h_bcm_target = 0.0
-                    h_fuel_budget = round(float(df_unit_breakdown["fuel_l_day_total"].sum()) * 0.02 / 4.0, 2) # Minimal idling fuel
-                    
-                # Unit detail for this hour
-                h_units = []
-                for _, u_row in df_unit_breakdown.iterrows():
-                    h_units.append({
-                        "unit_name": u_row["unit_name"],
-                        "activity": u_row["activity"],
-                        "operating_units": u_row["operating_units"] if is_op else 0,
-                        "hourly_bcm": round(u_row["prod_bcm_hr_total"] * rain_derating, 2) if is_op else 0.0,
-                        "hourly_fuel_l": round(u_row["fuel_l_day_total"] / 20.0, 2) if is_op else round(u_row["fuel_l_day_total"] * 0.01 / 4.0, 2)
-                    })
-                    
-                hourly_24h_timeline.append({
-                    "hour_index": h,
-                    "clock_hour": clock_hour,
-                    "hour_label": label,
-                    "shift": shift_name,
-                    "is_operating_hour": is_op,
-                    "hourly_bcm_target": h_bcm_target,
-                    "hourly_fuel_l_budget": h_fuel_budget,
-                    "units": h_units
-                })
-
-            # 8. SHIFT BREAKDOWN SUMMARY (SHIFT 1 vs SHIFT 2)
-            shift_1_items = [item for item in hourly_24h_timeline if item["shift"] == "SHIFT_1"]
-            shift_2_items = [item for item in hourly_24h_timeline if item["shift"] == "SHIFT_2"]
-            
-            shift_summary = [
-                {
-                    "shift_name": "SHIFT_1 (SIANG: 06:00 - 18:00)",
-                    "operating_hours": sum(1 for item in shift_1_items if item["is_operating_hour"]),
-                    "target_prod_bcm": round(sum(item["hourly_bcm_target"] for item in shift_1_items), 2),
-                    "fuel_budget_l": round(sum(item["hourly_fuel_l_budget"] for item in shift_1_items), 2),
-                },
-                {
-                    "shift_name": "SHIFT_2 (MALAM: 18:00 - 06:00)",
-                    "operating_hours": sum(1 for item in shift_2_items if item["is_operating_hour"]),
-                    "target_prod_bcm": round(sum(item["hourly_bcm_target"] for item in shift_2_items), 2),
-                    "fuel_budget_l": round(sum(item["hourly_fuel_l_budget"] for item in shift_2_items), 2),
-                }
-            ]
 
             result = {
                 "log_date": date_str,
@@ -236,15 +198,12 @@ class CombinedCapacityEngine:
                 "effective_prod_bcmday": round(total_effective_bcmday, 2),
                 "utilization_pct": round(utilization_pct, 2),
                 "total_fleet_qty": total_fleet_qty,
-                "operating_units": operating_units_total,
+                "operating_units": operating_units,
                 "total_combined_fuel_lday": round(total_combined_fuel_lday, 2),
-                "activity_breakdown": activity_summary,
-                "unit_breakdown": unit_breakdown,
-                "shift_breakdown": shift_summary,
-                "hourly_24h_timeline": hourly_24h_timeline
+                "activity_breakdown": activity_summary
             }
 
-            # Simpan hasil alokasi kapasitas granular ke Database
+            # Simpan hasil alokasi kapasitas ke Database
             self._save_capacity_to_db(db, result)
 
             return result
@@ -253,11 +212,160 @@ class CombinedCapacityEngine:
             if close_db:
                 db.close()
 
+    def perform_global_tuning(
+        self,
+        date_str: str,
+        forecast_prod_bcm: Optional[float] = None,
+        curah_hujan_mm: Optional[float] = None,
+        auto_scan_anomalies: bool = True,
+        db_session = None
+    ) -> Dict[str, Any]:
+        """
+        Global Tuning Engine:
+        Menghitung tuning kapasitas teoritis seluruh armada (324 unit) untuk tanggal spesifik,
+        lalu membandingkannya terhadap pemakaian BBM & jam operasional aktual harian per-unit dari database.
+        """
+        if db_session is None:
+            db = SessionLocal()
+            close_db = True
+        else:
+            db = db_session
+            close_db = False
+
+        try:
+            log_date = pd.to_datetime(date_str).date()
+
+            # 1. Lookup Weather & Forecast dari Database jika tidak dispesifikasikan
+            if curah_hujan_mm is None:
+                w_entry = db.query(WeatherDailyLog).filter(WeatherDailyLog.log_date == log_date).first()
+                curah_hujan_mm = float(w_entry.curah_hujan_mm) if w_entry else 0.0
+
+            if forecast_prod_bcm is None:
+                f_entry = db.query(DailyForecastLog).filter(DailyForecastLog.log_date == log_date).first()
+                forecast_prod_bcm = float(f_entry.daily_prod_bcm) if f_entry else 40000.0
+
+            # 2. Fetch / Auto-scan Anomaly Spikes Map per Unit
+            spike_map = {}
+            anomaly_records = db.query(UnitAnomalySpike).filter(UnitAnomalySpike.log_date == log_date).all()
+            
+            if anomaly_records:
+                for a in anomaly_records:
+                    if a.nn_anomaly_spike == 1:
+                        spike_map[a.unit_code] = spike_map.get(a.unit_code, 0) + 1
+
+            # 3. Hitung Tuned Fleet Capacity
+            tuned_cap = self.calculate_fleet_capacity(
+                date_str=date_str,
+                forecast_prod_bcm=forecast_prod_bcm,
+                curah_hujan_mm=curah_hujan_mm,
+                equipment_list=None,
+                nn_spike_count_by_unit=spike_map,
+                db_session=db
+            )
+
+            # 4. Melakukan Komparasi Tuning vs Usage Aktual Harian per Unit
+            actual_unit_usage = {}
+            if anomaly_records:
+                for a in anomaly_records:
+                    u_code = a.unit_code
+                    if u_code not in actual_unit_usage:
+                        actual_unit_usage[u_code] = {
+                            "unit_code": u_code,
+                            "activity": a.activity,
+                            "actual_fc_lhr": float(a.fc_actual),
+                            "actual_fuel_lday": float(a.unit_fuel_day),
+                            "actual_unit_fr": float(a.unit_fr),
+                            "nn_spike_count": int(a.nn_anomaly_spike)
+                        }
+                    else:
+                        actual_unit_usage[u_code]["actual_fuel_lday"] += float(a.unit_fuel_day)
+                        actual_unit_usage[u_code]["nn_spike_count"] += int(a.nn_anomaly_spike)
+
+            # 5. Susun Unit Tuning Comparison
+            eq_catalogs = db.query(EquipmentCatalog).all()
+            unit_tuning_breakdown = []
+            total_actual_fuel_lday = 0.0
+
+            for eq in eq_catalogs:
+                u_name = eq.unit_name
+                u_qty = eq.qty
+                u_act = eq.activity
+                u_fc_std = eq.fc_lhr
+
+                # Tuned values per unit group
+                tuned_unit_fuel = (u_qty * OPERATING_HOURS_PER_DAY * u_fc_std * (tuned_cap["utilization_pct"] / 100.0))
+                spike_count = spike_map.get(u_name, 0)
+                tuned_unit_fuel += tuned_unit_fuel * (spike_count * NN_SPIKE_BUFFER_PCT)
+
+                # Actual values
+                act_data = actual_unit_usage.get(u_name, {})
+                actual_fuel = act_data.get("actual_fuel_lday", 0.0)
+                total_actual_fuel_lday += actual_fuel
+
+                variance_l = actual_fuel - tuned_unit_fuel if actual_fuel > 0 else 0.0
+                variance_pct = (variance_l / tuned_unit_fuel * 100.0) if (actual_fuel > 0 and tuned_unit_fuel > 0) else 0.0
+
+                if actual_fuel == 0.0:
+                    tuning_status = "NO_ACTUAL_LOG"
+                elif variance_pct <= 0.0:
+                    tuning_status = "EFFICIENT"
+                elif variance_pct <= 5.0:
+                    tuning_status = "OPTIMAL"
+                elif variance_pct <= 15.0:
+                    tuning_status = "MODERATE_OVER_CONSUMPTION"
+                else:
+                    tuning_status = "SPIKE_CRITICAL_OVER_CONSUMPTION"
+
+                unit_tuning_breakdown.append({
+                    "unit_name": u_name,
+                    "activity": u_act,
+                    "fleet_qty": u_qty,
+                    "std_fc_lhr": u_fc_std,
+                    "tuned_fuel_allocation_lday": round(tuned_unit_fuel, 2),
+                    "actual_fuel_consumed_lday": round(actual_fuel, 2),
+                    "variance_liters": round(variance_l, 2),
+                    "variance_pct": round(variance_pct, 2),
+                    "spike_anomaly_count": spike_count,
+                    "tuning_status": tuning_status
+                })
+
+            net_variance_lday = total_actual_fuel_lday - tuned_cap["total_combined_fuel_lday"] if total_actual_fuel_lday > 0 else 0.0
+            overall_variance_pct = (net_variance_lday / tuned_cap["total_combined_fuel_lday"] * 100.0) if (total_actual_fuel_lday > 0 and tuned_cap["total_combined_fuel_lday"] > 0) else 0.0
+
+            return {
+                "log_date": date_str,
+                "tuning_parameters": {
+                    "forecast_prod_bcm": forecast_prod_bcm,
+                    "curah_hujan_mm": curah_hujan_mm,
+                    "rain_derating_factor": tuned_cap["rain_derating_factor"],
+                    "operating_hours_per_day": OPERATING_HOURS_PER_DAY
+                },
+                "global_capacity_summary": {
+                    "installed_cap_bcmhr": tuned_cap["installed_prod_bcmhr"],
+                    "effective_cap_bcmday": tuned_cap["effective_prod_bcmday"],
+                    "fleet_utilization_pct": tuned_cap["utilization_pct"],
+                    "total_fleet_units": tuned_cap["total_fleet_qty"],
+                    "required_operating_units": tuned_cap["operating_units"],
+                    "standby_units": tuned_cap["total_fleet_qty"] - tuned_cap["operating_units"]
+                },
+                "global_fuel_tuning_summary": {
+                    "tuned_combined_fuel_lday": tuned_cap["total_combined_fuel_lday"],
+                    "actual_total_fuel_lday": round(total_actual_fuel_lday, 2),
+                    "net_fuel_variance_lday": round(net_variance_lday, 2),
+                    "overall_variance_pct": round(overall_variance_pct, 2),
+                    "global_tuning_status": "OPTIMAL" if overall_variance_pct <= 5.0 else ("EFFICIENT" if overall_variance_pct <= 0 else "OVER_CONSUMPTION_ALERT")
+                },
+                "activity_breakdown": tuned_cap["activity_breakdown"],
+                "unit_tuning_comparison": unit_tuning_breakdown
+            }
+
+        finally:
+            if close_db:
+                db.close()
+
     def _save_capacity_to_db(self, db, result: Dict[str, Any]):
         """
-        Menyelaraskan data alokasi kapasitas & rincian per-unit per-jam ke tabel database:
-        - capacity_allocations
-        - capacity_unit_allocations
+        Menyelaraskan data alokasi kapasitas ke tabel database capacity_allocations
         """
         try:
             log_date = pd.to_datetime(result["log_date"]).date()
@@ -279,33 +387,9 @@ class CombinedCapacityEngine:
                     combined_fuel_lday=result["total_combined_fuel_lday"]
                 )
                 db.add(entry)
-            db.flush()
-
-            # Save Granular Unit Allocation records
-            db.query(CapacityUnitAllocation).filter(CapacityUnitAllocation.log_date == log_date).delete()
-            
-            for u in result["unit_breakdown"]:
-                u_entry = CapacityUnitAllocation(
-                    capacity_allocation_id=entry.id,
-                    log_date=log_date,
-                    unit_name=u["unit_name"],
-                    activity=u["activity"],
-                    total_qty=u["total_qty"],
-                    operating_units=u["operating_units"],
-                    prod_bcm_hr_unit=u["prod_bcm_hr_unit"],
-                    prod_bcm_hr_total=u["prod_bcm_hr_total"],
-                    prod_bcm_day_total=u["prod_bcm_day_total"],
-                    fuel_l_hr_unit=u["fuel_l_hr_unit"],
-                    fuel_l_hr_total=u["fuel_l_hr_total"],
-                    fuel_l_day_total=u["fuel_l_day_total"],
-                    unit_fr=u["unit_fr"],
-                    spike_count_nn=u["spike_count_nn"]
-                )
-                db.add(u_entry)
-
             db.commit()
         except Exception as e:
             db.rollback()
-            logger.error(f"Gagal menyimpan granular capacity unit allocation log ke database: {e}")
+            logger.error(f"Gagal menyimpan capacity allocation log ke database: {e}")
 
 capacity_engine = CombinedCapacityEngine()

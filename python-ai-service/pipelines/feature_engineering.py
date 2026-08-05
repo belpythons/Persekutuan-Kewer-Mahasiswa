@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 from typing import List, Tuple
+from operational_constants import DEFAULT_WIND_KMH, DEFAULT_TEMP_MAX_C, DEFAULT_RAIN_MM
 
 # Daftar 13 Fitur Wajib Sesuai Implementation Plan (Celah #13 resolved)
 FEATURE_COLUMNS: List[str] = [
@@ -66,9 +67,9 @@ def build_features(df: pd.DataFrame) -> Tuple[pd.DataFrame, List[str]]:
         df_transformed['RollingAvg_FR_7d'] = 0.0
 
     # Pastikan nilai default jika ada missing value
-    df_transformed['Kecepatan_Angin_kmh'] = df_transformed['Kecepatan_Angin_kmh'].fillna(12.0)
-    df_transformed['Temp_Max_C'] = df_transformed['Temp_Max_C'].fillna(32.0)
-    df_transformed['Curah_Hujan_mm'] = df_transformed['Curah_Hujan_mm'].fillna(0.0)
+    df_transformed['Kecepatan_Angin_kmh'] = df_transformed['Kecepatan_Angin_kmh'].fillna(DEFAULT_WIND_KMH)
+    df_transformed['Temp_Max_C'] = df_transformed['Temp_Max_C'].fillna(DEFAULT_TEMP_MAX_C)
+    df_transformed['Curah_Hujan_mm'] = df_transformed['Curah_Hujan_mm'].fillna(DEFAULT_RAIN_MM)
     
     return df_transformed, FEATURE_COLUMNS
 

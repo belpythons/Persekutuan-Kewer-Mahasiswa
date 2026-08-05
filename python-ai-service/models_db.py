@@ -10,6 +10,7 @@ class EquipmentCatalog(Base):
     qty = Column(Integer, nullable=False, default=1)
     activity = Column(String(50), nullable=False, index=True)  # LOADING, HAULING, SUPPORT, DEWATERING
     fc_lhr = Column(Float, nullable=False)  # Fuel Consumption L/hr
+    prod_bcmhr = Column(Float, nullable=True, default=0.0)  # Kapasitas Produksi BCM/hr
 
 class LoadingUnitBaseline(Base):
     __tablename__ = "loading_units_baseline"
@@ -78,6 +79,9 @@ class DailyForecastLog(Base):
     )
 
 class UnitAnomalySpike(Base):
+    """
+    Tabel Log Anomali Unit (3NF Normalized & High-Scale Composite Indexed)
+    """
     __tablename__ = "unit_anomaly_spikes"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -109,35 +113,23 @@ class CapacityAllocation(Base):
     combined_fuel_lday = Column(Float, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-class CapacityUnitAllocation(Base):
+class IoTTelemetryLog(Base):
     """
-    Rincian Alokasi Kapasitas & BBM Solar Per-Unit & Per-Jam untuk Setiap Aktivitas (3NF Granular)
+    Tabel Data Master IoT Telemetri Mesin / VIMS (Hardware Sensors).
     """
-    __tablename__ = "capacity_unit_allocations"
+    __tablename__ = "iot_telemetry_logs"
 
     id = Column(Integer, primary_key=True, index=True)
-    capacity_allocation_id = Column(Integer, ForeignKey("capacity_allocations.id", ondelete="CASCADE"), nullable=False, index=True)
     log_date = Column(Date, nullable=False, index=True)
-    unit_name = Column(String(100), nullable=False, index=True)
+    unit_code = Column(String(50), nullable=False, index=True)
     activity = Column(String(50), nullable=False, index=True)
-    total_qty = Column(Integer, nullable=False)
-    operating_units = Column(Integer, nullable=False)
-    
-    # Rincian Produktivitas Per Jam & Per Hari (BCM)
-    prod_bcm_hr_unit = Column(Float, nullable=False)     # BCM/hr per 1 unit
-    prod_bcm_hr_total = Column(Float, nullable=False)    # BCM/hr total unit aktif
-    prod_bcm_day_total = Column(Float, nullable=False)   # BCM/day efektif (setelah derating hujan)
-    
-    # Rincian BBM Solar Per Jam & Per Hari (Liter)
-    fuel_l_hr_unit = Column(Float, nullable=False)      # Liter/hr per 1 unit (FC Baseline)
-    fuel_l_hr_total = Column(Float, nullable=False)     # Liter/hr total unit aktif
-    fuel_l_day_total = Column(Float, nullable=False)    # Liter/day total (termasuk buffer spike)
-    
-    # Fuel Ratio Unit
-    unit_fr = Column(Float, nullable=False)             # Fuel Ratio L/BCM
-    spike_count_nn = Column(Integer, nullable=False, default=0)
+    hm_operating_hours = Column(Float, nullable=False, default=0.0)  # Jam kerja dari sensor Hour Meter IoT
+    fuel_consumed_iot_l = Column(Float, nullable=False, default=0.0)  # Total konsumsi solar aktual sensor IoT
+    actual_payload_bcm = Column(Float, nullable=False, default=0.0)  # Muatan BCM aktual sensor VIMS IoT
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (
-        Index("idx_cap_unit_date_unit", "log_date", "unit_name"),
-        Index("idx_cap_unit_date_act", "log_date", "activity"),
+        Index("idx_iot_telemetry_date_unit", "log_date", "unit_code", unique=True),
+        Index("idx_iot_telemetry_date_act", "log_date", "activity"),
     )
+

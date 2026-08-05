@@ -117,11 +117,32 @@ $$\text{Derating Factor } D(R) = \begin{cases} 1.0 & \text{jika } R \le 5.0 \tex
 
 ---
 
+### 5. Formulasi IoT Machine Telemetry vs Weather Capacity Comparator Engine
+
+Sistem ini membandingkan data telemetri aktual dari sensor mesin hardware IoT (*flowmeter* solar, Hour Meter HM, dan payload VIMS) terhadap **Kapasitas Efektif Disesuaikan Cuaca BMKG**:
+
+1. **Weather-Adjusted Allowed Fuel (Batas Toleransi BBM Hujan):**
+   $$\text{Max Allowed Fuel}_i = \text{HM}_{\text{IoT}, i} \times \text{FC}_{\text{Std}, i} \times D(R) \times (1.0 + \text{Threshold Warning 8\% / Critical 18\%})$$
+2. **Kalkulasi Variansi Solar (Liters & %):**
+   $$\text{Variance Liters}_i = \text{FuelConsumed}_{\text{IoT}, i} - (\text{HM}_{\text{IoT}, i} \times \text{FC}_{\text{Std}, i} \times D(R))$$
+   $$\text{Variance \%}_i = \left(\frac{\text{Variance Liters}_i}{\text{HM}_{\text{IoT}, i} \times \text{FC}_{\text{Std}, i} \times D(R)}\right) \times 100\%$$
+3. **Kriteria Evaluasi Anomali IoT:**
+   - `NORMAL_EFFICIENT`: $\text{Variance \%}_i \le 8.0\%$
+   - `WARNING_OVER_CONSUMPTION`: $8.0\% < \text{Variance \%}_i \le 18.0\%$
+   - `CRITICAL_IOT_FUEL_SPIKE`: $\text{Variance \%}_i > 18.0\%$ (`is_iot_anomaly = true`)
+   - `WEATHER_SLIPPAGE_ANOMALY`: Dipicu saat $D(R) < 0.85$ (hujan deras), jam kerja $\text{HM} \ge 12\text{ jam}$, tetapi muatan BCM drop akibat slip/lumpur.
+
+---
+
 ## 🌐 Panduan Integrasi REST API untuk Aplikasi Laravel
 
-| Endpoint HTTP | Fungsi & Kegunaan | Tabel Sync Database |
-|:--------------|:------------------|:--------------------|
-| `POST /api/v1/forecast` | Prediksi Fuel Ratio harian (L/BCM) & status alert. | `daily_forecast_logs` |
-| `POST /api/v1/anomaly-detect` | Scan log BBM unit & isolasi lonjakan spike anomali. | `unit_anomaly_spikes` |
-| `POST /api/v1/calculate-capacity` | Kalkulasi utilisasi %, unit aktif, & BBM per-unit per-jam. | `capacity_allocations` & `capacity_unit_allocations` |
+| Endpoint HTTP | Fungsi & Kegunaan Utama | Tabel Sync Database |
+|:--------------|:------------------------|:--------------------|
+| `POST /api/v1/forecast` | Prediksi Fuel Ratio harian (L/BCM) XGBoost & status alert. | `daily_forecast_logs` |
+| `POST /api/v1/anomaly-detect` | Scan log BBM unit & isolasi lonjakan spike anomali PyTorch. | `unit_anomaly_spikes` |
+| `POST /api/v1/calculate-capacity` | Kalkulasi utilisasi %, unit aktif, & BBM per-unit per-jam. | `capacity_allocations` |
+| `POST /api/v1/global-capacity-tuning` | Analisis variansi alokasi teoritis vs pemakaian harian aktual. | `capacity_allocations` |
+| `POST /api/v1/weather/sync-bmkg` | Sinkronisasi otomatis data cuaca real-time BMKG Paser Kaltim. | `weather_daily_logs` |
+| `POST /api/v1/iot/capacity-anomaly-audit` | Audit komparasi anomali sensor IoT vs toleransi cuaca. | `iot_telemetry_logs` |
 | `GET /ready` | Readiness probe memastikan model ML ter-load di RAM (< 60ms). | RAM Cache Status |
+

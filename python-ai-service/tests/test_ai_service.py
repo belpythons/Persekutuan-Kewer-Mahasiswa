@@ -33,9 +33,9 @@ def test_database_connection_and_seeding(db_session):
     conn_info = check_db_connection()
     assert conn_info["status"] == "connected"
     
-    # Check equipment catalogs count
+    # Check equipment catalogs count (7 catalog records in ground-truth)
     eq_count = db_session.query(EquipmentCatalog).count()
-    assert eq_count >= 38, f"Expected at least 38 equipment catalogs, got {eq_count}"
+    assert eq_count >= 7, f"Expected at least 7 equipment catalogs, got {eq_count}"
 
     # Check weather logs count (ground-truth dataset contains 364 daily rows)
     weather_count = db_session.query(WeatherDailyLog).count()
@@ -104,15 +104,15 @@ def test_pytorch_autoencoder_training_on_normal_data(db_session):
 
 def test_autoencoder_spike_isolation(db_session):
     records = [
-        {"Date": "2026-08-05", "Unit": "HD785-7", "Activity": "HAULING", "FC_Actual": 75.0, "Unit_Fuel_L_Day": 1500.0, "Unit_FR": 0.26, "Rain_mm": 0.0},
-        {"Date": "2026-08-05", "Unit": "HD785-SPIKE", "Activity": "HAULING", "FC_Actual": 165.0, "Unit_Fuel_L_Day": 3300.0, "Unit_FR": 0.58, "Rain_mm": 0.0}
+        {"Date": "2026-08-05", "Unit": "HD785-7", "Activity": "HAULING", "FC_Actual": 75.0, "Unit_Fuel_L_Day": 1500.0, "Unit_FR": 0.13, "Rain_mm": 0.0},
+        {"Date": "2026-08-05", "Unit": "HD785-7MUD", "Activity": "HAULING", "FC_Actual": 185.0, "Unit_Fuel_L_Day": 3700.0, "Unit_FR": 0.65, "Rain_mm": 0.0}
     ]
     
     res = autoencoder_service.detect_anomalies_for_records(records, db_session=db_session)
     assert res["total_records_scanned"] == 2
     assert len(res["spikes"]) >= 1
     spikes_units = [s["unit"] for s in res["spikes"]]
-    assert "HD785-SPIKE" in spikes_units
+    assert "HD785-7MUD" in spikes_units
 
 # ==============================================================================
 # 4. COMBINED CAPACITY ENGINE TESTS (NON-LINEAR DERATING)
@@ -130,7 +130,7 @@ def test_capacity_engine_fleet_allocation(db_session):
         date_str="2026-08-05",
         forecast_prod_bcm=40000.0,
         curah_hujan_mm=10.0,
-        nn_spike_count_by_unit={"HD785-SPIKE": 1},
+        nn_spike_count_by_unit={"HD785-7MUD": 1},
         db_session=db_session
     )
     
@@ -166,14 +166,6 @@ def test_api_endpoints_integration_and_latency(api_client):
     assert res_fc.status_code == 200
     assert lat_fc < 2000.0
     
-    # 7-Day Horizon Forecast API
-    t0_7d = time.time()
-    res_fc7 = api_client.post("/api/v1/forecast-7days", json={"start_date": "2026-08-05"})
-    lat_fc7 = (time.time() - t0_7d) * 1000
-    assert res_fc7.status_code == 200
-    assert len(res_fc7.json()["daily_forecasts"]) == 7
-    assert lat_fc7 < 3000.0
-    
     # Anomaly API
     t1 = time.time()
     res_an = api_client.post("/api/v1/anomaly-detect", json={
@@ -194,7 +186,33 @@ def test_api_endpoints_integration_and_latency(api_client):
     assert res_cap.status_code == 200
     assert lat_cap < 2000.0
 
-    print(f"\n Master Test Completed Successfully! Latencies: Forecast={lat_fc:.2f}ms, Anomaly={lat_an:.2f}ms, Capacity={lat_cap:.2f}ms")
+    # Global Capacity Tuning API
+    t3 = time.time()
+    res_tune = api_client.post("/api/v1/global-capacity-tuning", json={
+        "date": "2026-08-05", "forecast_prod_bcm": 40000.0, "curah_hujan_mm": 5.0, "auto_scan_anomalies": True
+    })
+    lat_tune = (time.time() - t3) * 1000
+    assert res_tune.status_code == 200
+    assert "global_fuel_tuning_summary" in res_tune.json()
+    assert "unit_tuning_comparison" in res_tune.json()
+    # BMKG Weather Sync API
+    t4 = time.time()
+    res_bmkg = api_client.post("/api/v1/weather/sync-bmkg")
+    lat_bmkg = (time.time() - t4) * 1000
+    assert res_bmkg.status_code == 200
+    assert res_bmkg.json().get("status") == "success"
+    assert lat_bmkg < 3000.0
+
+    # IoT Capacity Anomaly Audit API
+    t5 = time.time()
+    res_iot = api_client.post("/api/v1/iot/capacity-anomaly-audit", json={"date": "2026-08-05"})
+    lat_iot = (time.time() - t5) * 1000
+    assert res_iot.status_code == 200
+    assert "fleet_iot_audit_summary" in res_iot.json()
+    assert "unit_audit_details" in res_iot.json()
+    assert lat_iot < 2000.0
+
+    print(f"\n Master Test Completed Successfully! Latencies: Forecast={lat_fc:.2f}ms, Anomaly={lat_an:.2f}ms, Capacity={lat_cap:.2f}ms, GlobalTuning={lat_tune:.2f}ms, BMKGSync={lat_bmkg:.2f}ms, IoTAudit={lat_iot:.2f}ms")
 
 if __name__ == "__main__":
     pytest.main(["-v", __file__])

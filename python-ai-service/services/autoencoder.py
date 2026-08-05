@@ -234,17 +234,27 @@ class AutoencoderAnomalyService:
         df_records = pd.DataFrame(records)
         
         # Calculate FC_Ratio, Unit_FR_Ratio, Unit_Fuel_Ratio if not provided
+        if 'FC_Base' not in df_records.columns and db_session is not None:
+            try:
+                eq_map = {e.unit_name: e.fc_lhr for e in db_session.query(EquipmentCatalog).all()}
+                df_records['FC_Base'] = df_records['Unit'].map(lambda u: eq_map.get(u, 0.0))
+            except Exception as e:
+                logger.warning(f"Gagal lookup FC_Base dari DB: {e}")
+
         if 'FC_Ratio' not in df_records.columns:
             if 'FC_Base' in df_records.columns and (df_records['FC_Base'] > 0).all():
                 df_records['FC_Ratio'] = df_records['FC_Actual'] / df_records['FC_Base']
             else:
-                df_records['FC_Ratio'] = df_records['FC_Actual'] / df_records['FC_Actual'].mean()
+                mean_fc = df_records['FC_Actual'].mean()
+                df_records['FC_Ratio'] = df_records['FC_Actual'] / (mean_fc if mean_fc > 0 else 1.0)
                 
         if 'Unit_FR_Ratio' not in df_records.columns:
-            df_records['Unit_FR_Ratio'] = df_records['Unit_FR'] / df_records['Unit_FR'].mean()
+            mean_fr = df_records['Unit_FR'].mean()
+            df_records['Unit_FR_Ratio'] = df_records['Unit_FR'] / (mean_fr if mean_fr > 0 else 1.0)
             
         if 'Unit_Fuel_Ratio' not in df_records.columns:
-            df_records['Unit_Fuel_Ratio'] = df_records['Unit_Fuel_L_Day'] / df_records['Unit_Fuel_L_Day'].mean()
+            mean_fuel = df_records['Unit_Fuel_L_Day'].mean()
+            df_records['Unit_Fuel_Ratio'] = df_records['Unit_Fuel_L_Day'] / (mean_fuel if mean_fuel > 0 else 1.0)
                 
         # Susun fitur AE
         X_input = df_records[AE_FEATURE_COLUMNS].values

@@ -299,6 +299,144 @@ Kalkulasi penentuan alokasi kapasitas armada efektif, utilisasi %, unit operasio
 
 ---
 
+### 2.5. Global Fleet Capacity Tuning & Variance Analysis (`POST /api/v1/global-capacity-tuning`)
+
+Melakukan tuning alokasi kapasitas dan konsumsi BBM teoritis seluruh armada (324 unit), lalu membandingkannya terhadap **pemakaian BBM & jam operasional harian aktual per-unit** dari database untuk menghitung selisih variansi efisiensi.
+
+- **Endpoint:** `POST /api/v1/global-capacity-tuning`
+- **Request Payload Example:**
+```json
+{
+  "date": "2026-08-05",
+  "forecast_prod_bcm": 40000.0,
+  "curah_hujan_mm": 5.0,
+  "auto_scan_anomalies": true
+}
+```
+
+- **Response Payload `200 OK` Example:**
+```json
+{
+  "log_date": "2026-08-05",
+  "tuning_parameters": {
+    "forecast_prod_bcm": 40000.0,
+    "curah_hujan_mm": 5.0,
+    "rain_derating_factor": 1.0,
+    "operating_hours_per_day": 20.0
+  },
+  "global_capacity_summary": {
+    "installed_cap_bcmhr": 20927.88,
+    "effective_cap_bcmday": 418557.6,
+    "fleet_utilization_pct": 10.0,
+    "total_fleet_units": 324,
+    "required_operating_units": 33,
+    "standby_units": 291
+  },
+  "global_fuel_tuning_summary": {
+    "tuned_combined_fuel_lday": 24097.4,
+    "actual_total_fuel_lday": 25200.0,
+    "net_fuel_variance_lday": 1102.6,
+    "overall_variance_pct": 4.57,
+    "global_tuning_status": "OPTIMAL"
+  },
+  "unit_tuning_comparison": [
+    {
+      "unit_name": "EX2600-6",
+      "activity": "LOADING",
+      "fleet_qty": 1,
+      "std_fc_lhr": 190.0,
+      "tuned_fuel_allocation_lday": 380.0,
+      "actual_fuel_consumed_lday": 378.0,
+      "variance_liters": 0.0,
+      "variance_pct": 0.0,
+      "spike_anomaly_count": 0,
+      "tuning_status": "EFFICIENT"
+    }
+  ]
+}
+```
+
+---
+
+### 2.6. Real-Time BMKG Weather Sync Endpoint (`POST /api/v1/weather/sync-bmkg`)
+
+Menarik data cuaca real-time & 7-hari ke depan langsung dari **API BMKG / Live Open Data (Paser, Kalimantan Timur)** dan menyimpannya secara otomatis ke tabel `weather_daily_logs`.
+
+- **Endpoint:** `POST /api/v1/weather/sync-bmkg`
+- **Request:** `POST` (Tanpa body request)
+- **Response Payload `200 OK` Example:**
+```json
+{
+  "status": "success",
+  "source": "OPEN_METEO_PASER_LIVE",
+  "location": "Paser / Batu Kajang, Kalimantan Timur",
+  "records_synced": 7,
+  "data": [
+    {
+      "date": "2026-08-05",
+      "curah_hujan_mm": 5.2,
+      "temp_max_c": 31.8,
+      "kecepatan_angin_kmh": 11.4,
+      "source": "OPEN_METEO_PASER_LIVE"
+    }
+  ]
+}
+```
+
+---
+
+### 2.7. IoT Telemetry Machine vs Weather Capacity Audit Endpoint (`POST /api/v1/iot/capacity-anomaly-audit`)
+
+Audit komparasi anomali real-time antara **Data Telemetri Mesin Hardware IoT (Flowmeter Solar, Jam Kerja HM, Payload VIMS)** vs **Kapasitas Teoritis Efektif Armada Disesuaikan Cuaca BMKG**.
+
+- **Endpoint:** `POST /api/v1/iot/capacity-anomaly-audit`
+- **Request Payload Example:**
+```json
+{
+  "date": "2026-08-05"
+}
+```
+
+- **Response Payload `200 OK` Example:**
+```json
+{
+  "log_date": "2026-08-05",
+  "weather_context": {
+    "curah_hujan_mm": 5.0,
+    "rain_derating_factor": 1.0
+  },
+  "fleet_iot_audit_summary": {
+    "total_units_audited": 7,
+    "total_anomalies_detected": 1,
+    "total_iot_fuel_consumed_l": 24800.0,
+    "total_weather_allowed_fuel_l": 24097.4,
+    "net_variance_liters": 702.6,
+    "overall_variance_pct": 2.92,
+    "fleet_audit_status": "NORMAL"
+  },
+  "unit_audit_details": [
+    {
+      "unit_code": "HD785-7MUD",
+      "activity": "HAULING",
+      "hm_operating_hours": 20.0,
+      "fuel_consumed_iot_l": 1850.0,
+      "actual_fc_iot_lhr": 92.5,
+      "actual_payload_bcm": 2191.2,
+      "std_fc_lhr": 75.0,
+      "weather_derating_factor": 1.0,
+      "weather_allowed_fuel_l": 1500.0,
+      "variance_liters": 350.0,
+      "variance_pct": 23.33,
+      "is_iot_anomaly": true,
+      "is_weather_slippage": false,
+      "anomaly_status": "CRITICAL_IOT_FUEL_SPIKE"
+    }
+  ]
+}
+```
+
+---
+
 ## 💻 3. Contoh Implementasi Client Service Class di Laravel (PHP)
 
 Buat file Service Class `app/Services/FuelRatioAiClient.php` di Laravel:
@@ -380,7 +518,7 @@ class FuelRatioAiClient
     }
 
     /**
-     * Kalkulasi Penentuan Kapasitas Armada & Solar Kombinasi Per-Unit Per-Jam
+     * Kalkulasi Penentuan Kapasitas Armada & Solar Kombinasi Per-Unit
      */
     public function calculateCapacity(string $date, float $forecastProdBcm, float $rainMm, ?array $spikeMap = null): array
     {
@@ -389,6 +527,37 @@ class FuelRatioAiClient
             'forecast_prod_bcm' => $forecastProdBcm,
             'curah_hujan_mm' => $rainMm,
             'nn_spike_count_by_unit' => $spikeMap,
+        ]);
+    }
+
+    /**
+     * Global Fleet Capacity Tuning & Daily Usage Variance
+     */
+    public function performGlobalTuning(string $date, ?float $forecastProdBcm = null, ?float $rainMm = null): array
+    {
+        return $this->request('post', '/api/v1/global-capacity-tuning', [
+            'date' => $date,
+            'forecast_prod_bcm' => $forecastProdBcm,
+            'curah_hujan_mm' => $rainMm,
+            'auto_scan_anomalies' => true,
+        ]);
+    }
+
+    /**
+     * Real-Time BMKG Weather Sync
+     */
+    public function syncBmkgWeather(): array
+    {
+        return $this->request('post', '/api/v1/weather/sync-bmkg');
+    }
+
+    /**
+     * Audit Anomali Telemetri IoT Mesin vs Kapasitas Cuaca BMKG
+     */
+    public function auditIotCapacityAnomalies(string $date): array
+    {
+        return $this->request('post', '/api/v1/iot/capacity-anomaly-audit', [
+            'date' => $date,
         ]);
     }
 
@@ -411,13 +580,16 @@ class FuelRatioAiClient
 
 ## 🗄️ 4. Pemetaan Tabel Database Laravel Terkait
 
-Setiap panggillan API secara otomatis disinkronkan ke tabel database utama berikut:
+Setiap panggilan API secara otomatis disinkronkan ke tabel database utama berikut:
 
-| Endpoint REST API | Tabel Database Utama | Tabel Database Granular Per-Unit |
-|:------------------|:---------------------|:---------------------------------|
-| `POST /api/v1/forecast` | `daily_forecast_logs` | - |
-| `POST /api/v1/anomaly-detect` | `unit_anomaly_spikes` | `equipment_catalogs` (Foreign Key `equipment_id`) |
-| `POST /api/v1/calculate-capacity` | `capacity_allocations` | **`capacity_unit_allocations`** (Relasi 1:N Foreign Key `capacity_allocation_id`) |
+| Endpoint REST API | Tabel Database Utama | Kegunaan Utama |
+|:------------------|:---------------------|:---------------|
+| `POST /api/v1/forecast` | `daily_forecast_logs` | Log histori prediksi Total Fuel Ratio harian XGBoost |
+| `POST /api/v1/anomaly-detect` | `unit_anomaly_spikes` | Log deteksi anomali rekonstruksi PyTorch Autoencoder |
+| `POST /api/v1/calculate-capacity` | `capacity_allocations` | Log alokasi kapasitas armada terpasang, efektif & utilisasi % |
+| `POST /api/v1/global-capacity-tuning` | `capacity_allocations` | Analisis variansi rekomendasi BBM vs penggunaan harian aktual |
+| `POST /api/v1/weather/sync-bmkg` | `weather_daily_logs` | Sinkronisasi otomatis data cuaca real-time BMKG Paser |
+| `POST /api/v1/iot/capacity-anomaly-audit` | `iot_telemetry_logs` | Audit anomali telemetri hardware IoT vs batas toleransi cuaca |
 
 ---
 
@@ -426,3 +598,4 @@ Setiap panggillan API secara otomatis disinkronkan ke tabel database utama berik
 1. **Graceful Fallback**: Jika AI Service mengalami timeout/downtime, gunakan baseline default ($1.018$ L/BCM) agar aplikasi Laravel tidak crash.
 2. **Logging Error**: Setiap kegagalan HTTP otomatis dicatat pada `storage/logs/laravel.log`.
 3. **Automatic Retry**: Laravel HTTP Client secara otomatis akan mencoba ulang hingga 3 kali dengan selisih waktu 100ms.
+
