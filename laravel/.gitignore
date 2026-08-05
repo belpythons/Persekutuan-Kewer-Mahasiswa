@@ -1,0 +1,60 @@
+# Laravel / PHP
+/vendor/
+/bootstrap/cache/
+/storage/*.key
+.phpunit.result.cache
+.php-cs-fixer.cache
+auth.json
+composer.phar
+Homestead.json
+Homestead.yaml
+
+# Environment & Secrets
+.env
+.env.backup
+.env.production
+.env.local
+.env.*.local
+
+# Frontend / Node / Vite
+/node_modules/
+/public/build/
+/public/hot
+/public/storage
+dist/
+dist-ssr/
+*.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Caches & Linting
+.eslintcache
+.stylelintcache
+.tsbuildinfo
+
+# SQLite Database
+/database/*.sqlite
+/database/*.sqlite-journal
+
+# IDEs and Editors
+.idea/
+.vscode/
+.fleet/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+
+# Operating System Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
