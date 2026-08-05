@@ -3,8 +3,6 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
-use App\Repositories\Contracts\FuelRatioRepositoryInterface;
-use App\Repositories\Eloquent\FuelRatioRepository;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -13,7 +11,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->bind(FuelRatioRepositoryInterface::class, FuelRatioRepository::class);
+        //
     }
 
     /**
