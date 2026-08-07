@@ -61,7 +61,7 @@ onMounted(async () => {
         </span>
       </div>
       <VChip
-        color="success"
+        color="secondary"
         size="small"
         variant="tonal"
         class="font-weight-bold"
@@ -72,9 +72,9 @@ onMounted(async () => {
     </div>
 
     <!-- MAIN GRID - 100% Dynamic API Powered -->
-    <VRow class="match-height">
+    <VRow class="match-height gy-6">
       <!-- ZONE 0: REAL-TIME WEATHER RADAR CARD -->
-      <VCol cols="12" class="mb-1">
+      <VCol cols="12">
         <OpenMeteoWeatherCard />
       </VCol>
 
@@ -112,7 +112,7 @@ onMounted(async () => {
       </VCol>
 
       <!-- LEADERBOARD TABLE -->
-      <VCol cols="12" class="mt-1">
+      <VCol cols="12">
         <TopAnomalousLeaderboard
           :spike-report="anomalyData?.spike_report_per_unit ?? null"
           :is-loading="isLoading"

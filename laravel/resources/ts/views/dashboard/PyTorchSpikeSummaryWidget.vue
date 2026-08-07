@@ -26,7 +26,7 @@ const anomalyRatio = computed(() => {
     <VCardItem>
       <template #prepend>
         <VAvatar
-          color="error"
+          color="primary"
           variant="tonal"
           size="44"
           rounded
@@ -52,7 +52,7 @@ const anomalyRatio = computed(() => {
           <div>
             <span class="text-caption text-medium-emphasis">Spike Events Detected</span>
             <div class="d-flex align-center gap-2">
-              <h3 class="text-h3 font-weight-bold text-error">
+              <h3 class="text-h5 font-weight-bold text-error">
                 {{ props.totalSpikes }}
               </h3>
               <div class="spike-pulse-dot" />
@@ -72,6 +72,25 @@ const anomalyRatio = computed(() => {
               />
               <span class="text-medium-emphasis">Anomalous Units:</span>
               <strong class="ms-1 text-error">{{ props.anomalousUnitsCount }}</strong>
+            </div>
+            <div>
+              <VIcon
+                icon="bx-car"
+                size="16"
+                class="me-1"
+                style="color: #1E88E5;"
+              />
+              <span class="text-medium-emphasis">Fleet Scanned:</span>
+              <strong class="ms-1" style="color: #1E88E5;">{{ props.totalFleetUnits }}</strong>
+            </div>
+            <div>
+              <VIcon
+                icon="bx-pie-chart-alt"
+                size="16"
+                class="me-1 text-warning"
+              />
+              <span class="text-medium-emphasis">Anomaly Ratio:</span>
+              <strong class="ms-1 text-warning">{{ anomalyRatio }}%</strong>
             </div>
           </div>
         </div>

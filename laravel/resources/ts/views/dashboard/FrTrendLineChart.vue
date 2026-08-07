@@ -41,10 +41,10 @@ const chartOptions = computed(() => {
     },
     stroke: {
       curve: 'smooth' as const,
-      width: [3, 2],
+      width: [4, 2],
       dashArray: [0, 5],
     },
-    colors: ['#1A73E8', '#00897B'],
+    colors: ['#1E88E5', '#E53935'],
     xaxis: {
       categories: dates,
       labels: {
@@ -76,12 +76,11 @@ const chartOptions = computed(() => {
       yaxis: [
         {
           y: budgetBaseline,
-          borderColor: '#5F6368',
+          borderColor: '#56CA00',
           strokeDashArray: 6,
           label: {
             text: `Budget ${budgetBaseline} L/BCM`,
-            position: 'front' as const,
-            style: { color: '#5F6368', background: 'transparent', fontSize: '11px' },
+            style: { color: '#fff', background: '#56CA00', fontSize: '11px', fontWeight: 600 },
           },
         },
         {
@@ -91,7 +90,7 @@ const chartOptions = computed(() => {
           opacity: 0.3,
           label: {
             text: `Warning +8% (${warningThreshold})`,
-            style: { color: '#fff', background: '#f97316', fontSize: '11px' },
+            style: { color: '#fff', background: '#FFB400', fontSize: '11px', fontWeight: 600 },
           },
         },
         {
@@ -101,7 +100,7 @@ const chartOptions = computed(() => {
           opacity: 0.3,
           label: {
             text: `Critical +18% (${criticalThreshold})`,
-            style: { color: '#fff', background: '#ef4444', fontSize: '11px' },
+            style: { color: '#fff', background: '#E53935', fontSize: '11px', fontWeight: 600 },
           },
         },
       ],

@@ -39,10 +39,29 @@ const statusConfig = computed(() => {
 const deviationPct = computed(() => {
   return (((props.actualFr - props.budgetBaseline) / props.budgetBaseline) * 100).toFixed(1)
 })
+
+// Progress bar percentage (0.90 to 1.35 range mapped to 0-100%)
+const progressPct = computed(() => {
+  const min = 0.90
+  const max = 1.35
+  const clamped = Math.max(min, Math.min(max, props.actualFr))
+  return Math.round(((clamped - min) / (max - min)) * 100)
+})
+
+const progressColor = computed(() => {
+  if (props.actualFr >= props.criticalThreshold) return '#E53935'
+  if (props.actualFr >= props.warningThreshold) return '#FFB400'
+  return '#56CA00'
+})
+
+const isCriticalState = computed(() => status.value === 'CRITICAL')
 </script>
 
 <template>
-  <VCard class="border">
+  <VCard
+    class="alert-card"
+    :class="{ 'critical-tint': isCriticalState }"
+  >
     <VCardItem>
       <template #prepend>
         <VAvatar
@@ -70,10 +89,10 @@ const deviationPct = computed(() => {
       <template v-else>
         <div class="d-flex align-center gap-4 mb-3">
           <div>
-            <span class="text-caption text-medium-emphasis">Current FR</span>
+            <span class="text-caption text-medium-emphasis">Forecast FR (H+1)</span>
             <h3
-              class="text-h3 font-weight-bold"
-              :class="`text-${statusConfig.color}`"
+              class="text-h5 font-weight-bold"
+              style="color: #E53935;"
             >
               {{ props.actualFr.toFixed(4) }}
             </h3>
@@ -94,11 +113,20 @@ const deviationPct = computed(() => {
           </VChip>
         </div>
 
+        <!-- Progress Linear Ratio Indicator -->
+        <VProgressLinear
+          :model-value="progressPct"
+          :color="progressColor"
+          height="6"
+          rounded
+          class="mb-3"
+        />
+
         <VDivider class="mb-3" />
 
         <div class="d-flex justify-space-between text-caption flex-wrap gap-2">
           <div>
-            <span class="text-medium-emphasis">Budget Baseline:</span>
+            <span class="text-medium-emphasis">Budget SPO:</span>
             <strong class="ms-1 text-high-emphasis">{{ props.budgetBaseline.toFixed(4) }} L/BCM</strong>
           </div>
           <div>
@@ -117,3 +145,15 @@ const deviationPct = computed(() => {
     </VCardText>
   </VCard>
 </template>
+
+<style scoped>
+.alert-card {
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  transition: border-color 0.3s ease, background-color 0.3s ease;
+}
+
+.alert-card.critical-tint {
+  background-color: rgba(229, 57, 53, 0.06);
+  border-left: 4px solid #E53935;
+}
+</style>
