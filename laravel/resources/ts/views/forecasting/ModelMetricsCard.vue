@@ -107,17 +107,17 @@ onMounted(async () => {
       </VCardSubtitle>
     </VCardItem>
 
-    <VCardText>
-      <VRow>
+    <VCardText class="pa-4">
+      <VRow class="gy-4 gx-4">
         <VCol
           v-for="item in metrics"
           :key="item.label"
-          cols="6"
-          sm="3"
+          cols="12"
+          sm="6"
         >
           <VCard
             variant="outlined"
-            class="pa-3 text-center"
+            class="pa-4 text-center h-100 d-flex flex-column justify-center align-center"
           >
             <VAvatar
               :color="item.color"

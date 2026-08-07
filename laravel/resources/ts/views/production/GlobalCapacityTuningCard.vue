@@ -21,7 +21,7 @@ const statusColor = computed(() => {
 const getActivityColor = (activity: string) => {
   const act = activity.toUpperCase()
   if (act.includes('LOADING')) return 'primary'
-  if (act.includes('HAULING')) return 'success'
+  if (act.includes('HAULING')) return 'secondary'
   if (act.includes('SUPPORT')) return 'warning'
   return 'info'
 }
@@ -133,7 +133,7 @@ const getActivityColor = (activity: string) => {
         <div class="border rounded-lg overflow-hidden">
           <VTable density="compact" class="text-no-wrap">
             <thead>
-              <tr class="bg-surface">
+              <tr class="bg-surface" style="background-color: rgba(229, 57, 53, 0.04) !important;">
                 <th class="text-left font-weight-bold text-caption">UNIT TYPE</th>
                 <th class="text-left font-weight-bold text-caption">AKTIVITAS</th>
                 <th class="text-center font-weight-bold text-caption">QTY</th>

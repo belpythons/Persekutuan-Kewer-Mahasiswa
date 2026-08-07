@@ -105,17 +105,17 @@ const renderMarkdown = (text: string) => {
     </VCardItem>
 
     <!-- Chat Messages Scroll Area -->
-    <VCardText class="flex-grow-1 overflow-y-auto pa-4" style="max-height: 460px;">
+    <VCardText class="flex-grow-1 overflow-y-auto pa-4 d-flex flex-column gap-3" style="max-height: 440px;">
       <div
         v-for="msg in messages"
         :key="msg.id"
-        class="d-flex flex-column mb-4"
+        class="d-flex flex-column"
         :class="msg.sender === 'user' ? 'align-end' : 'align-start'"
       >
         <div
-          class="pa-3 rounded-lg text-body-2"
+          class="pa-3 rounded-lg text-body-2 lh-relaxed"
           :class="msg.sender === 'user' ? 'bg-primary text-white' : 'bg-surface border'"
-          style="max-width: 90%;"
+          style="max-width: 90%; line-height: 1.5;"
           v-html="renderMarkdown(msg.text)"
         />
         <div class="d-flex align-center gap-2 mt-1 px-1 text-caption text-medium-emphasis">

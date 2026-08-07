@@ -13,8 +13,8 @@ const props = withDefaults(defineProps<Props>(), {
   isLoading: false,
 })
 
-const fleetColor = computed(() => props.fleetType === 'Loading' ? 'primary' : 'info')
-const fleetIcon = computed(() => props.fleetType === 'Loading' ? 'bx-loader-circle' : 'bx-car')
+const fleetColor = computed(() => props.fleetType === 'Loading' ? 'primary' : 'secondary')
+const fleetIcon = computed(() => props.fleetType === 'Loading' ? 'bx-cog' : 'bx-car')
 
 const totalUnits = computed(() => props.activityData?.total_fleet_qty ?? 0)
 const activeUnits = computed(() => props.activityData?.operating_units ?? 0)
@@ -78,7 +78,7 @@ const dailyFuelAllocation = computed(() => props.activityData?.combined_fuel_lda
           </div>
           <VDivider vertical />
           <div class="text-center">
-            <h4 class="text-h4 font-weight-bold text-warning">
+            <h4 class="text-h4 font-weight-bold" :class="Number(utilisation) > 75 ? 'text-success' : Number(utilisation) > 50 ? 'text-warning' : 'text-error'">
               {{ utilisation }}%
             </h4>
             <span class="text-caption text-medium-emphasis">Utilisasi</span>

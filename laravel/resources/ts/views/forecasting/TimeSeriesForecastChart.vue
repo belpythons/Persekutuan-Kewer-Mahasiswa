@@ -99,10 +99,10 @@ const chartOptions = computed(() => {
     },
     stroke: {
       curve: 'smooth' as const,
-      width: [3, 3],
+      width: [4, 3],
       dashArray: [0, 6],
     },
-    colors: ['#1A73E8', '#00897B'],
+    colors: ['#1E88E5', '#E53935'],
     xaxis: {
       categories: categories.value,
       labels: {
@@ -134,11 +134,11 @@ const chartOptions = computed(() => {
       yaxis: [
         {
           y: bBase,
-          borderColor: '#5F6368',
+          borderColor: '#56CA00',
           strokeDashArray: 4,
           label: {
             text: `Budget Baseline: ${bBase} L/BCM`,
-            style: { color: '#5F6368', background: 'transparent', fontSize: '11px' },
+            style: { color: '#fff', background: '#56CA00', fontSize: '11px', fontWeight: 600 },
           },
         },
         {
@@ -148,7 +148,7 @@ const chartOptions = computed(() => {
           opacity: 0.35,
           label: {
             text: `Warning Zone (+8% ~ ${wThresh})`,
-            style: { color: '#fff', background: '#f97316', fontSize: '11px' },
+            style: { color: '#fff', background: '#FFB400', fontSize: '11px', fontWeight: 600 },
           },
         },
         {
@@ -158,19 +158,19 @@ const chartOptions = computed(() => {
           opacity: 0.35,
           label: {
             text: `Critical Zone (+18% ~ ${cThresh})`,
-            style: { color: '#fff', background: '#ef4444', fontSize: '11px' },
+            style: { color: '#fff', background: '#E53935', fontSize: '11px', fontWeight: 600 },
           },
         },
       ],
       xaxis: firstFcLabel ? [
         {
           x: firstFcLabel,
-          borderColor: '#00897B',
+          borderColor: '#1E88E5',
           strokeDashArray: 4,
           label: {
             text: 'Forecast Projection (7 Days)',
             orientation: 'vertical',
-            style: { color: '#fff', background: '#00897B', fontSize: '11px' },
+            style: { color: '#fff', background: '#1E88E5', fontSize: '11px', fontWeight: 600 },
           },
         },
       ] : [],
@@ -208,10 +208,10 @@ const series = computed(() => [
       <VCardSubtitle>Visualisasi 30 hari data historis DB + 7 hari proyeksi prediksi XGBoost</VCardSubtitle>
     </VCardItem>
 
-    <VCardText>
+    <VCardText class="pa-4">
       <VueApexCharts
         type="line"
-        :height="400"
+        :height="420"
         :options="chartOptions"
         :series="series"
       />

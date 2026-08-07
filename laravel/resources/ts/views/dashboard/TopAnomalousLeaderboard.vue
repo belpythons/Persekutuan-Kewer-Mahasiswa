@@ -66,11 +66,11 @@ const topUnits = computed<AnomalousUnit[]>(() => {
 
 const activityColor = (activity: string) => {
   switch (activity) {
-    case 'Hauling': return 'info'
+    case 'Hauling': return 'secondary'
     case 'Loading': return 'primary'
     case 'Supporting': return 'warning'
     case 'Support': return 'warning'
-    case 'Dewatering': return 'secondary'
+    case 'Dewatering': return 'info'
     default: return 'default'
   }
 }
@@ -87,7 +87,7 @@ const fcDeviation = (normal: number, spike: number) => {
     <VCardItem>
       <template #prepend>
         <VAvatar
-          color="warning"
+          color="primary"
           variant="tonal"
           size="48"
           rounded
