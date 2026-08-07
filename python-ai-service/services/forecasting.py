@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database import SessionLocal
 from models_db import DailyForecastLog, WeatherDailyLog
 from pipelines.feature_engineering import build_features, FEATURE_COLUMNS
+from services.redis_cache import redis_cache_service
 
 logger = logging.getLogger(__name__)
 
@@ -56,8 +57,28 @@ class ForecastingService:
     ) -> Dict[str, Any]:
         """
         Memprediksi Fuel Ratio harian berdasarkan 13 variabel input operasional.
-        Jika variabel cuaca / operasional tidak dikirim (None), sistem otomatis mengambil data dari database Supabase.
+        Jika variabel cuaca / operasional tidak dikirim (None), sistem otomatis mengambil data dari database Supabase / Redis Feature Store.
         """
+        # 1. Cek Caching Hasil Inferensi di Redis
+        input_payload = {
+            "date_str": date_str,
+            "curah_hujan_mm": curah_hujan_mm,
+            "temp_max_c": temp_max_c,
+            "kecepatan_angin_kmh": kecepatan_angin_kmh,
+            "haul_distance_m": haul_distance_m,
+            "daily_prod_bcm": daily_prod_bcm,
+            "rain_lag1": rain_lag1,
+            "rain_lag2": rain_lag2,
+            "fr_lag1": fr_lag1,
+            "fr_lag2": fr_lag2,
+            "rolling_avg_fr_7d": rolling_avg_fr_7d
+        }
+        params_hash = redis_cache_service.generate_hash(input_payload)
+        cached_forecast = redis_cache_service.get_forecast_cache(date_str, params_hash)
+        if cached_forecast is not None:
+            cached_forecast["cached"] = True
+            return cached_forecast
+
         if self.model is None or self.scaler is None:
             from pipelines.train_xgboost import train_xgboost_model
             train_xgboost_model(db_session)
@@ -66,7 +87,16 @@ class ForecastingService:
         dt = pd.to_datetime(date_str)
         cur_date = dt.date()
 
-        # Auto-query database untuk melengkapi variabel yang kosong (None)
+        # 2. Cek Redis Feature Store untuk Autoregressive Lags
+        cached_lags = redis_cache_service.get_lag_features_cache(date_str)
+        if cached_lags:
+            if rain_lag1 is None: rain_lag1 = cached_lags.get("rain_lag1")
+            if rain_lag2 is None: rain_lag2 = cached_lags.get("rain_lag2")
+            if fr_lag1 is None: fr_lag1 = cached_lags.get("fr_lag1")
+            if fr_lag2 is None: fr_lag2 = cached_lags.get("fr_lag2")
+            if rolling_avg_fr_7d is None: rolling_avg_fr_7d = cached_lags.get("rolling_avg_fr_7d")
+
+        # Auto-query database jika variabel atau lags masih None
         if db_session is not None:
             w_record = db_session.query(WeatherDailyLog).filter(WeatherDailyLog.log_date == cur_date).first()
             if w_record:
@@ -79,7 +109,7 @@ class ForecastingService:
                 if haul_distance_m is None: haul_distance_m = float(f_record.haul_distance_m)
                 if daily_prod_bcm is None: daily_prod_bcm = float(f_record.daily_prod_bcm)
 
-            # Auto-calculate Lags dari database jika None
+            # Auto-calculate Lags dari database jika masih None
             if rain_lag1 is None:
                 w1 = db_session.query(WeatherDailyLog).filter(WeatherDailyLog.log_date == cur_date - datetime.timedelta(days=1)).first()
                 rain_lag1 = float(w1.curah_hujan_mm) if w1 else 0.0
@@ -102,6 +132,15 @@ class ForecastingService:
                     rolling_avg_fr_7d = float(np.mean([r[0] for r in f_7d if r[0] is not None]))
                 else:
                     rolling_avg_fr_7d = BASE_TOTAL_FR_BUDGET
+
+            # Simpan Lags yang dihitung ke Redis Feature Store untuk request berikutnya
+            redis_cache_service.set_lag_features_cache(date_str, {
+                "rain_lag1": rain_lag1,
+                "rain_lag2": rain_lag2,
+                "fr_lag1": fr_lag1,
+                "fr_lag2": fr_lag2,
+                "rolling_avg_fr_7d": rolling_avg_fr_7d
+            }, ttl_seconds=86400)
 
         # Fallback default values jika tetap None (misal tanggal belum ada di DB)
         if curah_hujan_mm is None: curah_hujan_mm = 0.0
@@ -160,9 +199,13 @@ class ForecastingService:
             "critical_threshold": round(critical_threshold, 4),
             "daily_prod_bcm": daily_prod_bcm,
             "haul_distance_m": haul_distance_m,
-            "features_input": feature_dict
+            "features_input": feature_dict,
+            "cached": False
         }
         
+        # Simpan ke Redis Cache (TTL: 1 jam)
+        redis_cache_service.set_forecast_cache(date_str, params_hash, result, ttl_seconds=3600)
+
         # Update / Insert log forecast di database
         if db_session is not None:
             self._save_forecast_to_db(db_session, result)
@@ -178,6 +221,12 @@ class ForecastingService:
         Melakukan prediksi Fuel Ratio beruntun selama 7 HARI berturut-turut (Horizon 7-Day Forecasting)
         dimulai dari start_date_str dengan memperbarui autoregressive lag variables secara ilmiah.
         """
+        # Cek Cache 7-Day Horizon di Redis
+        cached_7d = redis_cache_service.get_forecast_7days_cache(start_date_str)
+        if cached_7d is not None:
+            cached_7d["cached"] = True
+            return cached_7d
+
         start_dt = pd.to_datetime(start_date_str)
         daily_results = []
         
@@ -237,7 +286,7 @@ class ForecastingService:
         warning_count = sum(1 for d in daily_results if d["status"] == "WARNING")
         critical_count = sum(1 for d in daily_results if d["status"] == "CRITICAL")
         
-        return {
+        horizon_result = {
             "start_date": start_date_str,
             "end_date": (start_dt + datetime.timedelta(days=6)).strftime("%Y-%m-%d"),
             "forecast_horizon_days": 7,
@@ -248,8 +297,14 @@ class ForecastingService:
                 "warning_alert_days": warning_count,
                 "critical_alert_days": critical_count
             },
-            "daily_forecasts": daily_results
+            "daily_forecasts": daily_results,
+            "cached": False
         }
+
+        # Simpan ke Redis Cache 7-Days Horizon (TTL: 1 jam)
+        redis_cache_service.set_forecast_7days_cache(start_date_str, horizon_result, ttl_seconds=3600)
+
+        return horizon_result
 
     def _save_forecast_to_db(self, db, result: Dict[str, Any]):
         """

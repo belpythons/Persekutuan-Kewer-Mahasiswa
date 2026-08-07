@@ -12,6 +12,7 @@ from database import SessionLocal
 from models_db import CapacityAllocation, CapacityUnitAllocation, EquipmentCatalog
 from services.forecasting import forecasting_service
 from services.autoencoder import autoencoder_service
+from services.redis_cache import redis_cache_service
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +51,19 @@ class CombinedCapacityEngine:
         Mengombinasikan XGBoost Forecast + PyTorch Autoencoder Spikes + Non-linear Rain Derating
         untuk menghitung alokasi kapasitas armada Rinci Per-Unit, Per-Jam, dan Parsing 24-Jam Timeline Operasional.
         """
+        # Cek Cache Alokasi Kapasitas di Redis
+        payload = {
+            "date": date_str,
+            "prod_bcm": forecast_prod_bcm,
+            "rain_mm": curah_hujan_mm,
+            "equipment": equipment_list,
+            "spikes": nn_spike_count_by_unit
+        }
+        params_hash = redis_cache_service.generate_hash(payload)
+        cached_cap = redis_cache_service.get_capacity_cache(date_str, params_hash)
+        if cached_cap is not None:
+            cached_cap["cached"] = True
+            return cached_cap
         if db_session is None:
             db = SessionLocal()
             close_db = True
@@ -241,8 +255,12 @@ class CombinedCapacityEngine:
                 "activity_breakdown": activity_summary,
                 "unit_breakdown": unit_breakdown,
                 "shift_breakdown": shift_summary,
-                "hourly_24h_timeline": hourly_24h_timeline
+                "hourly_24h_timeline": hourly_24h_timeline,
+                "cached": False
             }
+
+            # Simpan ke Redis Cache (TTL: 30 menit)
+            redis_cache_service.set_capacity_cache(date_str, params_hash, result, ttl_seconds=1800)
 
             # Simpan hasil alokasi kapasitas granular ke Database
             self._save_capacity_to_db(db, result)
@@ -320,6 +338,19 @@ class CombinedCapacityEngine:
         Melakukan tuning alokasi kapasitas dan konsumsi BBM teoritis seluruh armada (324 unit),
         lalu membandingkannya terhadap pemakaian BBM harian aktual per-unit.
         """
+        # Cek Cache Global Capacity Tuning di Redis
+        payload = {
+            "date": date_str,
+            "prod_bcm": forecast_prod_bcm,
+            "rain_mm": curah_hujan_mm,
+            "auto_scan": auto_scan_anomalies
+        }
+        params_hash = redis_cache_service.generate_hash(payload)
+        cached_tuning = redis_cache_service.get_global_tuning_cache(date_str, params_hash)
+        if cached_tuning is not None:
+            cached_tuning["cached"] = True
+            return cached_tuning
+
         if db_session is None:
             db = SessionLocal()
             close_db = True
@@ -378,7 +409,7 @@ class CombinedCapacityEngine:
             overall_variance_pct = round((net_variance_lday / max(1.0, tuned_total_fuel)) * 100.0, 2)
             global_status = "OPTIMAL" if overall_variance_pct <= 5.0 else ("WARNING" if overall_variance_pct <= 15.0 else "CRITICAL")
 
-            return {
+            tuning_result = {
                 "log_date": date_str,
                 "tuning_parameters": {
                     "forecast_prod_bcm": forecast_prod_bcm,
@@ -401,8 +432,14 @@ class CombinedCapacityEngine:
                     "overall_variance_pct": overall_variance_pct,
                     "global_tuning_status": global_status
                 },
-                "unit_tuning_comparison": unit_comparison
+                "unit_tuning_comparison": unit_comparison,
+                "cached": False
             }
+
+            # Simpan ke Redis Cache (TTL: 30 menit)
+            redis_cache_service.set_global_tuning_cache(date_str, params_hash, tuning_result, ttl_seconds=1800)
+
+            return tuning_result
         finally:
             if close_db:
                 db.close()

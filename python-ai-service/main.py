@@ -5,6 +5,7 @@ from fastapi import FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
 from config import settings
 from database import check_db_connection
+from services.redis_cache import redis_cache_service
 from services.warmup import warmup_service
 from api.routes_forecast import router as forecast_router
 from api.routes_anomaly import router as anomaly_router
@@ -62,15 +63,17 @@ def root():
 @app.get("/health", status_code=status.HTTP_200_OK)
 def health_check():
     """
-    Health Check Endpoint: Memeriksa kesehatan service dan status koneksi ke Database
+    Health Check Endpoint: Memeriksa kesehatan service dan status koneksi ke Database serta Redis Cache Layer
     """
     db_status = check_db_connection()
+    redis_status = redis_cache_service.check_connection()
     is_healthy = db_status.get("status") == "connected"
     
     return {
         "status": "healthy" if is_healthy else "unhealthy",
         "environment": settings.APP_ENV,
-        "database": db_status
+        "database": db_status,
+        "redis": redis_status
     }
 
 @app.get("/ready", status_code=status.HTTP_200_OK)

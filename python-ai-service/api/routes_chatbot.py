@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from config import settings
 from database import get_db
 from models_db import DailyForecastLog, CapacityAllocation, WeatherDailyLog, UnitAnomalySpike, EquipmentCatalog
+from services.redis_cache import redis_cache_service
 
 router = APIRouter(prefix="/api/v1/chatbot", tags=["Mining Fuel AI Chatbot Assistant"])
 
@@ -28,40 +29,44 @@ def query_mining_fuel_chatbot(request: ChatbotRequest, db: Session = Depends(get
     Mining Fuel AI Assistant Endpoint:
     Mendapatkan jawaban kontekstual berbasis data riil dari database (Forecast Logs, Capacity Allocations,
     Weather Daily Logs, Anomaly Spikes) + Gemini AI API Integration.
+    Didukung oleh Redis Context Caching untuk eliminasi beban 4-tabel query berulang.
     """
     try:
         query_str = request.query.strip()
         if not query_str:
             raise HTTPException(status_code=400, detail="Pertanyaan tidak boleh kosong")
 
-        # 1. Fetch Real Database Context via SQLAlchemy ORM (Strict Anti SQL Injection)
-        latest_forecast = db.query(DailyForecastLog).order_by(DailyForecastLog.log_date.desc()).first()
-        latest_capacity = db.query(CapacityAllocation).order_by(CapacityAllocation.log_date.desc()).first()
-        latest_weather = db.query(WeatherDailyLog).order_by(WeatherDailyLog.log_date.desc()).first()
-        recent_spikes = db.query(UnitAnomalySpike).filter(UnitAnomalySpike.nn_anomaly_spike == 1).order_by(UnitAnomalySpike.log_date.desc()).limit(5).all()
+        # 1. Fetch Real Database Context via Redis Cache (TTL: 60s) or SQLAlchemy ORM
+        db_context = redis_cache_service.get_chatbot_context_cache()
+        if db_context is None:
+            latest_forecast = db.query(DailyForecastLog).order_by(DailyForecastLog.log_date.desc()).first()
+            latest_capacity = db.query(CapacityAllocation).order_by(CapacityAllocation.log_date.desc()).first()
+            latest_weather = db.query(WeatherDailyLog).order_by(WeatherDailyLog.log_date.desc()).first()
+            recent_spikes = db.query(UnitAnomalySpike).filter(UnitAnomalySpike.nn_anomaly_spike == 1).order_by(UnitAnomalySpike.log_date.desc()).limit(5).all()
 
-        # Build DB Context
-        db_context = {
-            "forecast_fr": latest_forecast.forecast_fr if latest_forecast else 1.0180,
-            "actual_fr": latest_forecast.actual_fr if (latest_forecast and latest_forecast.actual_fr) else 1.0180,
-            "forecast_status": latest_forecast.status if latest_forecast else "NORMAL",
-            "warning_threshold": latest_forecast.warning_threshold if latest_forecast else 1.0994,
-            "critical_threshold": latest_forecast.critical_threshold if latest_forecast else 1.2012,
-            "daily_prod_bcm": latest_forecast.daily_prod_bcm if latest_forecast else 40000.0,
-            "haul_distance_m": latest_forecast.haul_distance_m if latest_forecast else 3900.0,
-            
-            "curah_hujan_mm": latest_weather.curah_hujan_mm if latest_weather else 0.0,
-            "temp_max_c": latest_weather.temp_max_c if latest_weather else 30.0,
-            
-            "installed_prod_bcmhr": latest_capacity.installed_prod_bcmhr if latest_capacity else 20927.88,
-            "effective_prod_bcmday": latest_capacity.effective_prod_bcmday if latest_capacity else 418557.6,
-            "fleet_utilization_pct": latest_capacity.utilization_pct if latest_capacity else 10.0,
-            "operating_units": latest_capacity.operating_units if latest_capacity else 33,
-            "combined_fuel_lday": latest_capacity.combined_fuel_lday if latest_capacity else 24097.4,
-            
-            "anomalous_spikes_detected": len(recent_spikes),
-            "anomalous_units_sample": [s.unit_code for s in recent_spikes] if recent_spikes else ["EX2600-6", "PC2000-11R"]
-        }
+            db_context = {
+                "forecast_fr": latest_forecast.forecast_fr if latest_forecast else 1.0180,
+                "actual_fr": latest_forecast.actual_fr if (latest_forecast and latest_forecast.actual_fr) else 1.0180,
+                "forecast_status": latest_forecast.status if latest_forecast else "NORMAL",
+                "warning_threshold": latest_forecast.warning_threshold if latest_forecast else 1.0994,
+                "critical_threshold": latest_forecast.critical_threshold if latest_forecast else 1.2012,
+                "daily_prod_bcm": latest_forecast.daily_prod_bcm if latest_forecast else 40000.0,
+                "haul_distance_m": latest_forecast.haul_distance_m if latest_forecast else 3900.0,
+                
+                "curah_hujan_mm": latest_weather.curah_hujan_mm if latest_weather else 0.0,
+                "temp_max_c": latest_weather.temp_max_c if latest_weather else 30.0,
+                
+                "installed_prod_bcmhr": latest_capacity.installed_prod_bcmhr if latest_capacity else 20927.88,
+                "effective_prod_bcmday": latest_capacity.effective_prod_bcmday if latest_capacity else 418557.6,
+                "fleet_utilization_pct": latest_capacity.utilization_pct if latest_capacity else 10.0,
+                "operating_units": latest_capacity.operating_units if latest_capacity else 33,
+                "combined_fuel_lday": latest_capacity.combined_fuel_lday if latest_capacity else 24097.4,
+                
+                "anomalous_spikes_detected": len(recent_spikes),
+                "anomalous_units_sample": [s.unit_code for s in recent_spikes] if recent_spikes else ["EX2600-6", "PC2000-11R"]
+            }
+            # Simpan context ke Redis Cache (TTL: 60s)
+            redis_cache_service.set_chatbot_context_cache(db_context, ttl_seconds=60)
 
         # 2. Check if Gemini API Key is valid (not empty and not a URL)
         api_key = settings.GEMINI_API_KEY.strip()

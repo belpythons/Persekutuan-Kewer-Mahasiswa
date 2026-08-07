@@ -119,7 +119,9 @@ class AutoencoderAnomalyService:
             X_normal_scaled = self.scaler.fit_transform(X_normal)
             X_normal_tensor = torch.tensor(X_normal_scaled, dtype=torch.float32)
             
-            # 2. PyTorch Training Loop
+            # 2. PyTorch Training Loop (Deterministic Seed)
+            torch.manual_seed(42)
+            np.random.seed(42)
             self.model = PyTorchAutoencoder(input_dim=len(AE_FEATURE_COLUMNS))
             optimizer = torch.optim.Adam(self.model.parameters(), lr=0.01)
             criterion = nn.MSELoss()
@@ -146,7 +148,7 @@ class AutoencoderAnomalyService:
                 
             median_err = float(np.median(errors_normal))
             mad_err = float(np.median(np.abs(errors_normal - median_err)))
-            self.global_threshold = max(float(np.percentile(errors_normal, 99.5)), float(median_err + 5.0 * 1.4826 * mad_err))
+            self.global_threshold = float(median_err + 3.0 * 1.4826 * mad_err)
             
             # Per-Activity Adaptive Thresholds
             df_normal['Recon_Error'] = errors_normal
@@ -156,7 +158,7 @@ class AutoencoderAnomalyService:
                 if len(act_errs) > 10:
                     med_a = np.median(act_errs)
                     mad_a = np.median(np.abs(act_errs - med_a))
-                    self.activity_thresholds[act] = max(float(np.percentile(act_errs, 99.5)), float(med_a + 5.0 * 1.4826 * mad_a))
+                    self.activity_thresholds[act] = float(med_a + 3.0 * 1.4826 * mad_a)
                 else:
                     self.activity_thresholds[act] = self.global_threshold
 
@@ -233,18 +235,52 @@ class AutoencoderAnomalyService:
             
         df_records = pd.DataFrame(records)
         
+        # Build catalog map for standard baseline lookup
+        eq_map = {}
+        if db_session is not None:
+            try:
+                for eq in db_session.query(EquipmentCatalog).all():
+                    clean_k = str(eq.unit_name).replace(" ", "").replace("-", "").lower()
+                    eq_map[clean_k] = float(eq.fc_lhr)
+            except Exception:
+                pass
+
         # Calculate FC_Ratio, Unit_FR_Ratio, Unit_Fuel_Ratio if not provided
         if 'FC_Ratio' not in df_records.columns:
-            if 'FC_Base' in df_records.columns and (df_records['FC_Base'] > 0).all():
-                df_records['FC_Ratio'] = df_records['FC_Actual'] / df_records['FC_Base']
-            else:
-                df_records['FC_Ratio'] = df_records['FC_Actual'] / df_records['FC_Actual'].mean()
+            fc_ratios = []
+            for _, r in df_records.iterrows():
+                if 'FC_Base' in r and float(r['FC_Base'] or 0) > 0:
+                    base_fc = float(r['FC_Base'])
+                else:
+                    u_clean = str(r.get('Unit', '')).replace(" ", "").replace("-", "").lower()
+                    base_fc = eq_map.get(u_clean, 75.0)
+                fc_act = float(r.get('FC_Actual', base_fc))
+                fc_ratios.append(fc_act / max(1.0, base_fc))
+            df_records['FC_Ratio'] = fc_ratios
                 
         if 'Unit_FR_Ratio' not in df_records.columns:
-            df_records['Unit_FR_Ratio'] = df_records['Unit_FR'] / df_records['Unit_FR'].mean()
+            fr_ratios = []
+            for _, r in df_records.iterrows():
+                if 'FR_Base' in r and float(r['FR_Base'] or 0) > 0:
+                    base_fr = float(r['FR_Base'])
+                else:
+                    base_fr = 0.26
+                u_fr = float(r.get('Unit_FR', base_fr))
+                fr_ratios.append(u_fr / max(0.01, base_fr))
+            df_records['Unit_FR_Ratio'] = fr_ratios
             
         if 'Unit_Fuel_Ratio' not in df_records.columns:
-            df_records['Unit_Fuel_Ratio'] = df_records['Unit_Fuel_L_Day'] / df_records['Unit_Fuel_L_Day'].mean()
+            fuel_ratios = []
+            for _, r in df_records.iterrows():
+                if 'Fuel_Base' in r and float(r['Fuel_Base'] or 0) > 0:
+                    base_fuel = float(r['Fuel_Base'])
+                else:
+                    u_clean = str(r.get('Unit', '')).replace(" ", "").replace("-", "").lower()
+                    base_fc = eq_map.get(u_clean, 75.0)
+                    base_fuel = base_fc * 20.0  # 20 Jam Kerja Standar
+                u_fuel = float(r.get('Unit_Fuel_L_Day', base_fuel))
+                fuel_ratios.append(u_fuel / max(1.0, base_fuel))
+            df_records['Unit_Fuel_Ratio'] = fuel_ratios
                 
         # Susun fitur AE
         X_input = df_records[AE_FEATURE_COLUMNS].values
