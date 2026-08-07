@@ -36,8 +36,8 @@ const weather = ref<RealtimeWeatherData>({
 
 const weatherCodeMap: Record<number, { desc: string; icon: string }> = {
   0: { desc: 'Cerah', icon: 'bx-sun' },
-  1: { desc: 'Cerah Berawan', icon: 'bx-cloud-sun' },
-  2: { desc: 'Berawan Sebagian', icon: 'bx-cloud-sun' },
+  1: { desc: 'Cerah Berawan', icon: 'bx-cloud' },
+  2: { desc: 'Berawan Sebagian', icon: 'bx-cloud' },
   3: { desc: 'Berawan Mendung', icon: 'bx-cloud' },
   45: { desc: 'Kabut Tipis', icon: 'bx-cloud' },
   48: { desc: 'Kabut Tebal', icon: 'bx-cloud' },
@@ -46,7 +46,7 @@ const weatherCodeMap: Record<number, { desc: string; icon: string }> = {
   55: { desc: 'Gerimis Lebat', icon: 'bx-cloud-drizzle' },
   61: { desc: 'Hujan Ringan', icon: 'bx-cloud-rain' },
   63: { desc: 'Hujan Sedang', icon: 'bx-cloud-rain' },
-  65: { desc: 'Hujan Lebat', icon: 'bx-cloud-heavy-rain' },
+  65: { desc: 'Hujan Lebat', icon: 'bx-cloud-rain' },
   80: { desc: 'Hujan Lokal', icon: 'bx-cloud-rain' },
   81: { desc: 'Hujan Deras', icon: 'bx-cloud-lightning' },
   82: { desc: 'Hujan Ekstrem', icon: 'bx-cloud-lightning' },
@@ -54,7 +54,7 @@ const weatherCodeMap: Record<number, { desc: string; icon: string }> = {
 }
 
 const weatherInfo = computed(() => {
-  return weatherCodeMap[weather.value.weather_code] || { desc: 'Cerah Berawan', icon: 'bx-cloud-sun' }
+  return weatherCodeMap[weather.value.weather_code] || { desc: 'Cerah Berawan', icon: 'bx-cloud' }
 })
 
 // Non-linear Derating Formula (Solusi Celah #9 Dokumen Bisnis)
@@ -191,12 +191,12 @@ onUnmounted(() => {
           <div class="stat-item border rounded-lg p-3">
             <div class="d-flex align-center justify-space-between mb-1">
               <span class="text-caption text-medium-emphasis font-weight-medium">Curah Hujan</span>
-              <VIcon icon="bx-water" size="18" class="text-info" />
+              <VIcon icon="bx-water" size="18" class="text-secondary" />
             </div>
             <div class="text-h5 font-weight-bold text-high-emphasis">
               {{ weather.rainfall_mm.toFixed(2) }} <span class="text-caption text-medium-emphasis">mm/h</span>
             </div>
-            <div class="text-caption text-info font-weight-medium">
+            <div class="text-caption text-secondary font-weight-medium">
               {{ weatherInfo.desc }}
             </div>
           </div>
@@ -239,7 +239,7 @@ onUnmounted(() => {
           <div class="stat-item border rounded-lg p-3">
             <div class="d-flex align-center justify-space-between mb-1">
               <span class="text-caption text-medium-emphasis font-weight-medium">Impact Haul Distance</span>
-              <VIcon icon="bx-truck" size="18" class="text-primary" />
+              <VIcon icon="bx-car" size="18" class="text-primary" />
             </div>
             <div class="text-h5 font-weight-bold text-primary">
               {{ haulDistanceM.toLocaleString('id-ID') }} <span class="text-caption text-medium-emphasis">m</span>
@@ -290,11 +290,13 @@ onUnmounted(() => {
 .stat-item {
   background-color: rgba(var(--v-theme-surface), 0.5);
   border-color: rgba(var(--v-border-color), var(--v-border-opacity)) !important;
-  transition: border-color 0.2s ease;
+  transition: border-color 0.3s ease, transform 0.2s ease, box-shadow 0.3s ease;
 }
 
 .stat-item:hover {
   border-color: rgba(var(--v-theme-primary), 0.3) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(229, 57, 53, 0.08);
 }
 
 .tracking-tight {
