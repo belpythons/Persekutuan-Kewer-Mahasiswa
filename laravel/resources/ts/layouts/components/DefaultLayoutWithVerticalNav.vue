@@ -40,7 +40,7 @@ import UserProfile from '@/layouts/components/UserProfile.vue'
         <VSpacer />
 
         <IconBtn
-          href="https://github.com/themeselection/sneat-vuetify-vuejs-laravel-admin-template-free"
+          href="https://github.com/belpythons/Persekutuan-Kewer-Mahasiswa.git"
           target="_blank"
           rel="noopener noreferrer"
         >
@@ -67,6 +67,7 @@ import UserProfile from '@/layouts/components/UserProfile.vue'
             src="/favicon.ico"
             alt="Kideco"
             class="kideco-nav-logo"
+            style="max-height: 38px; width: auto; object-fit: contain;"
           />
         </div>
       </RouterLink>
