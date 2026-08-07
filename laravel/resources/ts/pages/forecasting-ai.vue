@@ -18,7 +18,7 @@ import MiningFuelChatbotWidget from '@/views/forecasting/MiningFuelChatbotWidget
     </div>
 
     <!-- MAIN BALANCED GRID -->
-    <VRow class="match-height">
+    <VRow class="match-height gy-6">
       <!-- ZONE 1: SCENARIO SIMULATOR & MODEL METRICS -->
       <VCol cols="12" lg="7">
         <ScenarioSimulatorControls class="h-100" />

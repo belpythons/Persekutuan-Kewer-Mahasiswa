@@ -72,7 +72,7 @@ const debouncedRunForecast = () => {
   timer = setTimeout(runForecast, 300)
 }
 
-watch([rainfallMm, haulDistanceM, targetBcm], () => {
+watch([rainfallMm, tempMaxC, windKmh, haulDistanceM, targetBcm], () => {
   debouncedRunForecast()
 })
 
@@ -93,32 +93,33 @@ onMounted(() => {
 </script>
 
 <template>
-  <VCard class="d-flex flex-column h-100">
-    <VCardItem>
+  <VCard class="d-flex flex-column h-100 pa-2">
+    <VCardItem class="pb-2">
       <template #prepend>
         <VAvatar
-          color="primary"
+          color="secondary"
           variant="tonal"
-          size="48"
+          size="44"
           rounded
         >
           <VIcon
-            icon="bx-slider"
-            size="28"
+            icon="bx-slider-alt"
+            size="24"
           />
         </VAvatar>
       </template>
-      <VCardTitle class="text-body-1 font-weight-medium">
-        Forecast Scenario Simulator
+      <VCardTitle class="text-body-1 font-weight-bold">
+        What-If Scenario Simulator
       </VCardTitle>
-      <VCardSubtitle>Simulasi variabel cuaca, jarak angkut, dan target produksi</VCardSubtitle>
+      <VCardSubtitle class="text-caption">Simulasi variabel cuaca, jarak angkut, dan target produksi</VCardSubtitle>
       <template #append>
-        <div class="d-flex gap-2">
+        <div class="d-flex align-center gap-2">
           <VChip
             v-if="aiStatus === 'live'"
             color="success"
             size="small"
             variant="tonal"
+            class="font-weight-medium"
           >
             <VIcon
               icon="bx-check-circle"
@@ -132,12 +133,14 @@ onMounted(() => {
             color="warning"
             size="small"
             variant="tonal"
+            class="font-weight-medium"
           >
             Fallback Mode
           </VChip>
           <VBtn
             size="small"
-            variant="text"
+            variant="tonal"
+            color="secondary"
             prepend-icon="bx-reset"
             @click="resetDefaults"
           >
@@ -147,107 +150,172 @@ onMounted(() => {
       </template>
     </VCardItem>
 
-    <VCardText class="flex-grow-1 d-flex flex-column justify-space-between">
-      <VRow>
-        <VCol
-          cols="12"
-          md="4"
-        >
-          <div class="d-flex justify-space-between mb-1">
-            <span class="text-body-2 text-medium-emphasis">Curah Hujan (mm/hr)</span>
-            <strong>{{ rainfallMm }} mm</strong>
+    <!-- Loading indicator at top of panel -->
+    <VProgressLinear
+      v-if="isLoading"
+      indeterminate
+      color="secondary"
+      height="3"
+    />
+
+    <VCardText class="flex-grow-1 d-flex flex-column justify-space-between pt-3 pb-2">
+      <!-- SPACIOUS 2-COLUMN SLIDER GRID -->
+      <VRow class="gy-4 gx-6">
+        <!-- Curah Hujan -->
+        <VCol cols="12" sm="6">
+          <div class="d-flex justify-space-between align-center mb-1">
+            <span class="text-body-2 text-medium-emphasis d-flex align-center gap-1 font-weight-medium">
+              <VIcon icon="bx-water" size="18" color="secondary" />
+              Curah Hujan (mm/hr)
+            </span>
+            <strong style="color: #1E88E5;">{{ rainfallMm }} mm</strong>
           </div>
           <VSlider
             v-model="rainfallMm"
             :min="0"
-            :max="80"
+            :max="150"
             :step="0.5"
-            color="info"
+            color="secondary"
             thumb-label
+            hide-details
+            density="comfortable"
           />
         </VCol>
 
-        <VCol
-          cols="12"
-          md="4"
-        >
-          <div class="d-flex justify-space-between mb-1">
-            <span class="text-body-2 text-medium-emphasis">Jarak Angkut (m)</span>
-            <strong>{{ haulDistanceM.toLocaleString('id-ID') }} m</strong>
+        <!-- Suhu Maksimum -->
+        <VCol cols="12" sm="6">
+          <div class="d-flex justify-space-between align-center mb-1">
+            <span class="text-body-2 text-medium-emphasis d-flex align-center gap-1 font-weight-medium">
+              <VIcon icon="bx-thermometer" size="18" color="primary" />
+              Suhu Maksimum (°C)
+            </span>
+            <strong style="color: #E53935;">{{ tempMaxC }} °C</strong>
+          </div>
+          <VSlider
+            v-model="tempMaxC"
+            :min="20"
+            :max="45"
+            :step="0.5"
+            color="primary"
+            thumb-label
+            hide-details
+            density="comfortable"
+          />
+        </VCol>
+
+        <!-- Kecepatan Angin -->
+        <VCol cols="12" sm="6">
+          <div class="d-flex justify-space-between align-center mb-1">
+            <span class="text-body-2 text-medium-emphasis d-flex align-center gap-1 font-weight-medium">
+              <VIcon icon="bx-wind" size="18" color="info" />
+              Kecepatan Angin (km/h)
+            </span>
+            <strong>{{ windKmh }} km/h</strong>
+          </div>
+          <VSlider
+            v-model="windKmh"
+            :min="0"
+            :max="50"
+            :step="1"
+            color="info"
+            thumb-label
+            hide-details
+            density="comfortable"
+          />
+        </VCol>
+
+        <!-- Jarak Angkut -->
+        <VCol cols="12" sm="6">
+          <div class="d-flex justify-space-between align-center mb-1">
+            <span class="text-body-2 text-medium-emphasis d-flex align-center gap-1 font-weight-medium">
+              <VIcon icon="bx-map" size="18" color="primary" />
+              Jarak Angkut (m)
+            </span>
+            <strong style="color: #E53935;">{{ haulDistanceM.toLocaleString('id-ID') }} m</strong>
           </div>
           <VSlider
             v-model="haulDistanceM"
-            :min="3000"
-            :max="6000"
-            :step="50"
+            :min="1000"
+            :max="10000"
+            :step="100"
             color="primary"
             thumb-label
+            hide-details
+            density="comfortable"
           />
         </VCol>
 
-        <VCol
-          cols="12"
-          md="4"
-        >
-          <div class="d-flex justify-space-between mb-1">
-            <span class="text-body-2 text-medium-emphasis">Target Produksi (BCM)</span>
-            <strong>{{ targetBcm.toLocaleString('id-ID') }} BCM</strong>
+        <!-- Target Produksi -->
+        <VCol cols="12">
+          <div class="d-flex justify-space-between align-center mb-1">
+            <span class="text-body-2 text-medium-emphasis d-flex align-center gap-1 font-weight-medium">
+              <VIcon icon="bx-bar-chart-alt-2" size="18" color="secondary" />
+              Target Produksi (BCM)
+            </span>
+            <strong style="color: #1E88E5;">{{ targetBcm.toLocaleString('id-ID') }} BCM</strong>
           </div>
           <VSlider
             v-model="targetBcm"
-            :min="150000"
+            :min="10000"
             :max="350000"
             :step="5000"
-            color="success"
+            color="secondary"
             thumb-label
+            hide-details
+            density="comfortable"
           />
         </VCol>
       </VRow>
 
-      <!-- RESULTS SHEET (AUTOMATIC RECALCULATION ON SLIDER CHANGE) -->
+      <!-- RESULTS SHEET (SPACIOUS LAYOUT & CLEAR VISUAL ACCENT) -->
       <VSheet
         rounded="lg"
-        class="pa-4 border mt-4"
-        :class="`bg-${status.color}-lighten-5 border-${status.color}`"
+        class="pa-4 border mt-5 result-sheet"
+        :style="{
+          backgroundColor: status.color === 'error' ? 'rgba(229, 57, 53, 0.06)' : status.color === 'warning' ? 'rgba(255, 180, 0, 0.06)' : 'rgba(86, 202, 0, 0.06)',
+          borderLeftColor: status.color === 'error' ? '#E53935' : status.color === 'warning' ? '#FFB400' : '#56CA00',
+          borderLeftWidth: '4px',
+          borderLeftStyle: 'solid',
+        }"
       >
-        <VRow align="center">
+        <VRow align="center" class="gy-2 gx-4">
           <VCol
             cols="12"
             sm="5"
           >
-            <div class="text-caption text-medium-emphasis mb-1">
+            <div class="text-caption text-medium-emphasis mb-1 font-weight-medium">
               Predicted Fuel Ratio
             </div>
             <div class="d-flex align-baseline gap-2">
               <span
-                class="text-h3 font-weight-bold"
+                class="text-h5 font-weight-bold"
                 :class="`text-${status.color}`"
               >
                 {{ predictedFr.toFixed(4) }}
               </span>
-              <span class="text-body-2 text-medium-emphasis">L/BCM</span>
+              <span class="text-caption text-medium-emphasis font-weight-medium">L/BCM</span>
             </div>
           </VCol>
 
           <VCol
             cols="12"
-            sm="5"
+            sm="4"
           >
-            <div class="text-caption text-medium-emphasis mb-1">
+            <div class="text-caption text-medium-emphasis mb-1 font-weight-medium">
               Predicted Fuel Requirement
             </div>
             <div class="d-flex align-baseline gap-2">
-              <span class="text-h4 font-weight-bold text-high-emphasis">
+              <span class="text-h5 font-weight-bold text-high-emphasis">
                 {{ predictedFuelL.toLocaleString('id-ID') }}
               </span>
-              <span class="text-body-2 text-medium-emphasis">L/hari</span>
+              <span class="text-caption text-medium-emphasis font-weight-medium">L/hari</span>
             </div>
           </VCol>
 
           <VCol
             cols="12"
-            sm="2"
-            class="text-right"
+            sm="3"
+            class="text-sm-right text-left"
           >
             <VChip
               :color="status.color"
@@ -270,5 +338,9 @@ onMounted(() => {
 <style scoped>
 .h-100 {
   height: 100%;
+}
+
+.result-sheet {
+  transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 </style>
