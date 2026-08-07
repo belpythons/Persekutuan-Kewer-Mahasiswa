@@ -22,7 +22,7 @@ interface FleetAllocation {
 
 const activityIcon = (activity: string) => {
   const map: Record<string, string> = {
-    loading: 'bx-loader-circle',
+    loading: 'bx-cog',
     hauling: 'bx-car',
     supporting: 'bx-wrench',
     dewatering: 'bx-droplet',
@@ -33,7 +33,7 @@ const activityIcon = (activity: string) => {
 const activityColor = (activity: string) => {
   const map: Record<string, string> = {
     loading: 'primary',
-    hauling: 'info',
+    hauling: 'secondary',
     supporting: 'warning',
     dewatering: 'secondary',
   }

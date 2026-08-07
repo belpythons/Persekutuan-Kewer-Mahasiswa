@@ -56,7 +56,7 @@ const headers = [
 const activityColor = (a: string) => {
   switch (a) {
     case 'LOADING': return 'primary'
-    case 'HAULING': return 'info'
+    case 'HAULING': return 'secondary'
     case 'SUPPORTING': return 'warning'
     case 'DEWATERING': return 'secondary'
     default: return 'default'
