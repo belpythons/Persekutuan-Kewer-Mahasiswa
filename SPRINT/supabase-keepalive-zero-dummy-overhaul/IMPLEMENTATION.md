@@ -22,9 +22,12 @@
 | Hapus demo page & fake identity (account-settings) | ✅ Selesai | `90092ae` |
 | Rewiring 5 widget dummy ke endpoint riil (D1) | ✅ Selesai | `94e052f` |
 | Endpoint model-metrics riil + fix GlobalCapacityTuningCard | ✅ Selesai | `15a21c1` |
-| EWH Budget endpoint & widget (D2) | ⏳ Berjalan | — |
-| Threshold Config table/endpoint + Retrain endpoint (D3) | ⏳ Direncanakan | — |
-| AI Co-pilot copywriting + XGBoost feature contributions (G) | ⏳ Direncanakan | — |
+| Fix fabricated weather data di `sync-bmkg` (ditemukan saat D2) | ✅ Selesai | `fabae03` |
+| EWH Budget endpoint & widget (D2) | ✅ Selesai | `9b690b6` |
+| Threshold Config table/endpoint + Retrain endpoint (D3, backend) | ✅ Selesai | `085bfe2` |
+| Laravel passthrough EWH/threshold-config/retrain | ✅ Selesai | `729869a` |
+| Frontend wiring D2+D3 + halaman baru `/support-weather-mlops` | ✅ Selesai | `adc1048` |
+| AI Co-pilot copywriting + XGBoost feature contributions (G) | ⏳ Berjalan | — |
 
 ---
 
@@ -105,6 +108,42 @@ Semua lima komponen berikut sebelumnya 100% hardcoded dan **tidak pernah di-impo
 **Frontend:**
 - `ModelMetricsCard.vue` — hardcoded fallback metrics (R² `0.9901`, MAE `0.0045`, versi `v3.3/v2.11`) yang **selalu muncul saat AI service offline** diganti dengan data riil dari endpoint baru. Error state sekarang jelas berbeda dari "belum ada model".
 - `GlobalCapacityTuningCard.vue` — **tidak punya error state sama sekali**: saat fetch gagal, kartu ini merender angka fabrikasi (`418557.6` BCM/day, `33/324` unit, dst.) selamanya seolah-olah data live. Ditambahkan `isError` + tombol retry. Chip status tuning diperbaiki (`OVER_CONSUMPTION` kini merah/error, sebelumnya disamakan dengan `WARNING`). Hex hardcoded terakhir diganti theme token.
+
+---
+
+## 7. Temuan Tak Terduga: `sync-bmkg` Memfabrikasi Data Cuaca (`fabae03`)
+
+Saat mengerjakan D2, ditemukan `POST /api/v1/weather/sync-bmkg` (dipanggil `OpenMeteoWeatherCard.vue` sebagai background sync) ternyata **mengisi `weather_daily_logs` dengan `random.uniform()`** untuk hampir semua field, diberi label `"OPEN_METEO_PASER_LIVE"` seolah data riil dari API eksternal. Karena `weather_daily_logs` dibaca langsung oleh `forecasting_service` untuk prediksi FR hari-hari mendatang, ini berarti **forecast bisa dihitung dari curah hujan/suhu/angin fiktif** tanpa disadari siapapun.
+
+**Perbaikan:** Endpoint kini memanggil Open-Meteo daily-forecast API sungguhan (koordinat Paser yang sama dipakai frontend), meng-upsert persis nilai yang dikembalikan API — tanpa randomness sama sekali. Kegagalan upstream → HTTP 502 (bukan commit data fiktif secara diam-diam). Ditambahkan `tests/test_weather_sync.py` yang mem-mock `requests.get` untuk membuktikan baris yang tersimpan identik dengan response API.
+
+---
+
+## 8. Equipment Working Hours (EWH) Budget — Endpoint & Widget Riil (D2, `9b690b6` + `adc1048`)
+
+**Endpoint baru:** `GET /api/v1/ewh-budget?forecast_prod_bcm=<n>` menggabungkan:
+- `supporting_units_baseline` / `dewatering_units_baseline` (kolom `pa`/`ua`, **sebelumnya tidak dipakai di manapun** — dikonfirmasi lewat pencarian seluruh codebase) → formula standar `EWH = 24 jam × PA% × UA%`.
+- `equipment_catalogs` (qty & fc_lhr riil per model, difilter `activity IN (SUPPORT, DEWATERING)` dan `qty > 0`) → breakdown per-model.
+
+Skema asli (`supporting_units_baseline`/`dewatering_units_baseline`) **hanya punya 1 baris per sektor** — jauh lebih sedikit dibanding daftar 6+4 model fiktif yang dipakai dummy sebelumnya. Formula diterapkan secara merata ke semua equipment riil di sektor tersebut (satu-satunya interpretasi yang jujur terhadap skema yang ada).
+
+**Frontend:** `SupportEwhBudgetCard.vue` di-generalisasi menerima `EwhSector` apapun; `DewateringEwhBudgetCard.vue` jadi thin-wrapper; `SupportDewateringEwhTable.vue` flatten dari `sectors[].equipment[]`.
+
+---
+
+## 9. Dynamic Threshold Config + Model Retrain (D3, `085bfe2` + `729869a` + `adc1048`)
+
+**Tabel baru:** `cfg_system_mlops` (model `SystemMlopsConfig`) — generic key/value, **sesuai desain yang sudah ada di `SPRINT/sprint pages/Page_03_Support_Dewatering_dan_Weather_MLOps.md`** (tabel ini direncanakan tim tapi belum pernah diimplementasikan). Default value di-seed otomatis (lazy init) persis sama dengan konstanta lama (`1.018`, `+8%`, `+18%`) sehingga perilaku tidak berubah sampai seseorang mengubahnya lewat endpoint baru.
+
+**Endpoint baru:**
+- `GET`/`PUT /api/v1/threshold-config` — baca/ubah budget baseline & persentase warning/critical.
+- `POST /api/v1/model/retrain` — melatih ulang XGBoost + PyTorch Autoencoder dari data DB terkini (±9 detik untuk ukuran dataset saat ini), reload model XGBoost yang aktif di memory, kembalikan metrik hasil retrain yang riil.
+
+**`forecasting_service.forecast_single_day()`** kini membaca threshold dari `cfg_system_mlops` saat `db_session` tersedia (fallback ke konstanta lama jika tidak) — dikonfirmasi tidak merusak test `test_forecasting_service_dynamic_thresholds` yang sudah ada karena nilai default identik.
+
+**Halaman baru:** `/support-weather-mlops` (route + nav item baru) — menyatukan `OpenMeteoWeatherCard`, `SupportEwhBudgetCard`, `DewateringEwhBudgetCard`, `NonProductionFuelBurdenDonut`, `SupportDewateringEwhTable`, `DynamicThresholdConfigCard`, `MLOpsModelRetrainCard` persis sesuai wireframe yang sudah direncanakan di sprint docs tapi belum pernah dibangun.
+
+**Loose ends ditutup:** 2 dari 3 komentar `ponytail:` yang sebelumnya menandai `budget-baseline` sebagai konstanta hardcoded sementara (`dashboard.vue`, `TimeSeriesForecastChart.vue`) kini membaca nilai riil dari `/api/v1/threshold-config`.
 
 ---
 
