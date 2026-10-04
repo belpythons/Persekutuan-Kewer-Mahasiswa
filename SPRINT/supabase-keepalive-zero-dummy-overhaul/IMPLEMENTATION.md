@@ -27,7 +27,9 @@
 | Threshold Config table/endpoint + Retrain endpoint (D3, backend) | ✅ Selesai | `085bfe2` |
 | Laravel passthrough EWH/threshold-config/retrain | ✅ Selesai | `729869a` |
 | Frontend wiring D2+D3 + halaman baru `/support-weather-mlops` | ✅ Selesai | `adc1048` |
-| AI Co-pilot copywriting + XGBoost feature contributions (G) | ⏳ Berjalan | — |
+| AI Co-pilot copywriting + XGBoost feature contributions (G) | ✅ Selesai | `9ac741e` |
+
+**Seluruh fase dari rencana yang disetujui (Objektif 1 + Objektif 2 Fase A–G) telah selesai diimplementasikan dan diverifikasi.**
 
 ---
 
@@ -144,6 +146,25 @@ Skema asli (`supporting_units_baseline`/`dewatering_units_baseline`) **hanya pun
 **Halaman baru:** `/support-weather-mlops` (route + nav item baru) — menyatukan `OpenMeteoWeatherCard`, `SupportEwhBudgetCard`, `DewateringEwhBudgetCard`, `NonProductionFuelBurdenDonut`, `SupportDewateringEwhTable`, `DynamicThresholdConfigCard`, `MLOpsModelRetrainCard` persis sesuai wireframe yang sudah direncanakan di sprint docs tapi belum pernah dibangun.
 
 **Loose ends ditutup:** 2 dari 3 komentar `ponytail:` yang sebelumnya menandai `budget-baseline` sebagai konstanta hardcoded sementara (`dashboard.vue`, `TimeSeriesForecastChart.vue`) kini membaca nilai riil dari `/api/v1/threshold-config`.
+
+---
+
+## 10. AI Co-pilot Honesty Pass & XGBoost Feature Contributions (Phase G, `9ac741e`)
+
+**AI Co-pilot:**
+- Rename konsisten "Mining Fuel AI Assistant" → **"KIDECO Dispatch & Fuel Co-pilot"** di widget frontend maupun system prompt Gemini & fallback engine backend.
+- Status "Gemini AI & Real DB Context Connected" yang **selalu tampil terlepas dari status AI service sebenarnya** kini membaca `GET /api/v1/ai-ready` secara riil.
+- Suggested prompt yang membawa angka fiktif (`"...naik ke 1.285 L/BCM?"`) diganti pertanyaan genuine.
+- Backend fallback engine (`routes_chatbot.py`): `anomalous_units_sample` sebelumnya default ke **2 unit kode fiktif** (`EX2600-6`, `PC2000-11R`) setiap kali 0 spike terdeteksi — sekarang kosong secara jujur. Klaim **"WO Maintenance otomatis telah diterbitkan"** (yang tidak pernah benar-benar terjadi) dihapus, diganti rekomendasi tindakan (bukan klaim tindakan sudah diambil).
+- **Temuan keamanan:** pesan chat dirender via `v-html` setelah hanya transformasi markdown bold/newline, **tanpa HTML-escaping** — pesan pengguna sendiri (termasuk query yang di-echo balik) bisa menyisipkan markup mentah. Diperbaiki: escape dulu, baru terapkan transformasi markdown.
+
+**XGBoost Transparency:**
+- `forecasting_service.forecast_single_day()` kini menghitung **feature contributions riil** via `pred_contribs` XGBoost booster (nilai aditif/gaya-SHAP — jumlah seluruh kontribusi + base_value = hasil prediksi), bukan feature_importance global atau rekayasa. Diekspos sebagai `feature_contributions` di `/api/v1/forecast` & `/api/v1/forecast-7days`.
+- `ScenarioSimulatorControls.vue` menampilkan 3 kontributor utama (berdasarkan magnitude absolut) sebagai chip di kartu hasil.
+
+**Temuan di luar scope, diflag terpisah (spawn_task):**
+- PyTorch Autoencoder training tidak memiliki random seed → `tests/test_task_4.py` flaky antar run (precision bisa 0.88 atau 0.36 dengan kode & data identik).
+- `spike_report_per_unit.avg_fc_normal` dari endpoint anomaly-detect kadang kembali 0, itulah sebabnya `TopAnomalousLeaderboard.vue` masih punya `stdFcMap` sebagai fallback client-side.
 
 ---
 
