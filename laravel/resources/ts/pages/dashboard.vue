@@ -6,10 +6,12 @@ import PyTorchSpikeSummaryWidget from '@/views/dashboard/PyTorchSpikeSummaryWidg
 import TopAnomalousLeaderboard from '@/views/dashboard/TopAnomalousLeaderboard.vue'
 import ActivityFuelDonutChart from '@/views/dashboard/ActivityFuelDonutChart.vue'
 import OpenMeteoWeatherCard from '@/views/support/OpenMeteoWeatherCard.vue'
+import TimeSeriesForecastChart from '@/views/forecasting/TimeSeriesForecastChart.vue'
 
-const { fetchForecast, fetchAnomalyDetect, fetchCalculateCapacity } = useAiApi()
+const { fetchForecast, fetchAnomalyDetect, fetchCalculateCapacity, fetchThresholdConfig } = useAiApi()
 
 const isLoading = ref(true)
+const isError = ref(false)
 
 // Forecast data for alert widget
 const forecastData = ref<ForecastResponse | null>(null)
@@ -20,7 +22,21 @@ const anomalyData = ref<AnomalyDetectResponse | null>(null)
 // Capacity data for donut chart
 const capacityData = ref<CapacityResponse | null>(null)
 
-onMounted(async () => {
+// Budget baseline for the alert widget — real, editable config (cfg_system_mlops), not a
+// hardcoded constant duplicated across frontend files.
+const budgetBaseline = ref(1.018)
+
+// Excess fuel = how much more solar the forecast FR burns than the budget baseline, applied to
+// today's production target. 0 when the forecast is at or under budget — not a placeholder.
+const excessFuelLiters = computed(() => {
+  if (!forecastData.value) return 0
+  const excessFr = forecastData.value.forecast_fr - budgetBaseline.value
+  return excessFr > 0 ? Math.round(excessFr * forecastData.value.daily_prod_bcm) : 0
+})
+
+async function loadDashboard() {
+  isLoading.value = true
+  isError.value = false
   const today = new Date().toISOString().slice(0, 10)
 
   try {
@@ -28,24 +44,31 @@ onMounted(async () => {
     const forecastResult = await fetchForecast({ date: today })
     forecastData.value = forecastResult
 
+    fetchThresholdConfig().then(cfg => { budgetBaseline.value = cfg.budget_baseline }).catch(() => null)
+
     // 2. Fetch Capacity (Dependent on Forecast Production & Weather)
     const capacityResult = await fetchCalculateCapacity({
       date: today,
-      forecast_prod_bcm: forecastResult.daily_prod_bcm || 40000.0,
-      curah_hujan_mm: forecastResult.features_input?.Curah_Hujan_mm || 0.0,
+      forecast_prod_bcm: forecastResult.daily_prod_bcm,
+      curah_hujan_mm: forecastResult.features_input?.Curah_Hujan_mm ?? 0.0,
     })
     capacityData.value = capacityResult
 
-    // 3. Fetch Anomaly (Empty records triggers Python DB Fallback for today)
+    // 3. Fetch Anomaly (Empty records triggers Python DB lookup for today)
     const anomalyResult = await fetchAnomalyDetect([])
     anomalyData.value = anomalyResult
-
   } catch (error) {
-    console.error("Failed to load AI Dashboard data:", error)
+    console.error('Failed to load AI Dashboard data:', error)
+    isError.value = true
+    forecastData.value = null
+    anomalyData.value = null
+    capacityData.value = null
   } finally {
     isLoading.value = false
   }
-})
+}
+
+onMounted(loadDashboard)
 </script>
 
 <template>
@@ -81,13 +104,15 @@ onMounted(async () => {
       <!-- TOP METRIC 1: FORECAST ALERT -->
       <VCol cols="12" sm="6" lg="4">
         <DynamicThresholdAlertWidget
-          :actual-fr="forecastData?.forecast_fr ?? 1.0180"
-          :budget-baseline="1.0180"
-          :warning-threshold="forecastData?.warning_threshold ?? 1.0994"
-          :critical-threshold="forecastData?.critical_threshold ?? 1.2012"
-          :excess-fuel-liters="0"
+          :actual-fr="forecastData?.forecast_fr ?? 0"
+          :budget-baseline="budgetBaseline"
+          :warning-threshold="forecastData?.warning_threshold ?? 0"
+          :critical-threshold="forecastData?.critical_threshold ?? 0"
+          :excess-fuel-liters="excessFuelLiters"
           :is-loading="isLoading"
+          :is-error="isError"
           class="h-100"
+          @retry="loadDashboard"
         />
       </VCol>
 
@@ -109,6 +134,11 @@ onMounted(async () => {
           :total-fuel="capacityData?.total_combined_fuel_lday ?? null"
           class="h-100"
         />
+      </VCol>
+
+      <!-- FR TREND: 30-DAY HISTORY + 7-DAY FORECAST -->
+      <VCol cols="12">
+        <TimeSeriesForecastChart />
       </VCol>
 
       <!-- LEADERBOARD TABLE -->

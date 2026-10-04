@@ -11,21 +11,23 @@
 
 export interface ForecastPayload {
   date: string
-  curah_hujan_mm: number
-  temp_max_c: number
-  kecepatan_angin_kmh: number
-  haul_distance_m: number
-  daily_prod_bcm: number
+  curah_hujan_mm?: number
+  temp_max_c?: number
+  kecepatan_angin_kmh?: number
+  haul_distance_m?: number
+  daily_prod_bcm?: number
 }
 
 export interface ForecastResponse {
   log_date: string
   forecast_fr: number
   status: 'NORMAL' | 'WARNING' | 'CRITICAL'
-  budget_baseline: number
   warning_threshold: number
   critical_threshold: number
-  features_used?: Record<string, number>
+  daily_prod_bcm: number
+  haul_distance_m: number
+  features_input?: Record<string, number>
+  feature_contributions?: Record<string, number>
   fallback?: boolean
   error?: string
 }
@@ -215,6 +217,60 @@ export interface BmkgWeatherSyncResponse {
   fallback?: boolean
 }
 
+export interface EwhEquipmentItem {
+  equipment_model: string
+  active_qty: number
+  fc_rate_l_hr: number
+  daily_ewh_hrs: number
+  annual_budgeted_ewh: number
+  daily_fuel_allocation_liters: number
+  annual_fuel_budget_liters: number
+  fr_burden_l_bcm: number
+  fr_burden_pct: number
+}
+
+export interface EwhSector {
+  sector: string
+  baseline_unit_code: string
+  pa_pct: number
+  ua_pct: number
+  daily_ewh_hrs: number
+  total_units: number
+  total_daily_fuel_liters: number
+  total_fr_burden_l_bcm: number
+  total_fr_burden_pct: number
+  equipment: EwhEquipmentItem[]
+}
+
+export interface EwhBudgetResponse {
+  forecast_prod_bcm: number
+  sectors: EwhSector[]
+  fallback?: boolean
+  error?: string
+}
+
+export interface ThresholdConfigResponse {
+  budget_baseline: number
+  warning_pct: number
+  critical_pct: number
+  fallback?: boolean
+  error?: string
+}
+
+export interface ThresholdConfigUpdatePayload {
+  budget_baseline?: number
+  warning_pct?: number
+  critical_pct?: number
+}
+
+export interface ModelRetrainResponse {
+  xgboost: { status: string; metrics: Record<string, number> } | null
+  autoencoder: { status: string; evaluation: Record<string, number> } | null
+  errors: string[]
+  fallback?: boolean
+  error?: string
+}
+
 export interface ChatbotQueryResponse {
   query: string
   response: string
@@ -240,6 +296,36 @@ export interface ReadyResponse {
   error?: string
 }
 
+export interface ModelMetricsResponse {
+  xgboost: {
+    model_name?: string
+    version?: string
+    feature_count?: number
+    cv_strategy?: string
+    metrics: {
+      avg_cv_r2?: number
+      avg_cv_mae?: number
+      final_full_r2?: number
+      final_full_mae?: number
+      final_full_rmse?: number
+    }
+  }
+  autoencoder: {
+    model_name?: string
+    version?: string
+    global_threshold?: number
+    evaluation: {
+      precision?: number
+      recall?: number
+      true_positive?: number
+      false_positive?: number
+      false_negative?: number
+    }
+  } | null
+  fallback?: boolean
+  error?: string
+}
+
 export interface HealthResponse {
   status: string
   environment?: string
@@ -254,6 +340,20 @@ export interface HealthResponse {
 // API Helper
 // ============================================================
 
+/**
+ * Thrown by apiRequest() whenever Laravel answers with a non-2xx status (including its
+ * `fallback: true` / 503 responses). `body` still carries whatever Laravel sent — including
+ * the fallback payload — for callers that want to tell "AI service down" apart from a hard
+ * network failure, but nothing reaches a caller labeled as live data unless the request
+ * actually succeeded.
+ */
+export class AiApiError extends Error {
+  constructor(message: string, public status: number, public body: any) {
+    super(message)
+    this.name = 'AiApiError'
+  }
+}
+
 async function apiRequest<T>(method: string, url: string, body?: unknown): Promise<T> {
   const options: RequestInit = {
     method,
@@ -267,8 +367,18 @@ async function apiRequest<T>(method: string, url: string, body?: unknown): Promi
     options.body = JSON.stringify(body)
   }
 
-  const response = await fetch(url, options)
-  const data = await response.json()
+  let response: Response
+  try {
+    response = await fetch(url, options)
+  } catch (networkError) {
+    throw new AiApiError('Tidak dapat menghubungi server', 0, null)
+  }
+
+  const data = await response.json().catch(() => null)
+
+  if (!response.ok) {
+    throw new AiApiError(data?.error || `HTTP ${response.status}`, response.status, data)
+  }
 
   return data as T
 }
@@ -302,6 +412,13 @@ export function useAiApi() {
   }
 
   /**
+   * GET /api/v1/model-metrics — Metrik evaluasi model riil (R², MAE) dari training terakhir
+   */
+  async function fetchModelMetrics(): Promise<ModelMetricsResponse> {
+    return apiRequest<ModelMetricsResponse>('GET', '/api/v1/model-metrics')
+  }
+
+  /**
    * POST /api/v1/anomaly-detect — Deteksi spike BBM (PyTorch Autoencoder)
    */
   async function fetchAnomalyDetect(records: AnomalyRecord[]): Promise<AnomalyDetectResponse> {
@@ -330,6 +447,34 @@ export function useAiApi() {
   }
 
   /**
+   * GET /api/v1/ewh-budget — Equipment Working Hours & alokasi solar Support/Dewatering
+   */
+  async function fetchEwhBudget(forecastProdBcm = 40000.0): Promise<EwhBudgetResponse> {
+    return apiRequest<EwhBudgetResponse>('GET', `/api/v1/ewh-budget?forecast_prod_bcm=${forecastProdBcm}`)
+  }
+
+  /**
+   * GET /api/v1/threshold-config — Konfigurasi threshold Fuel Ratio dinamis
+   */
+  async function fetchThresholdConfig(): Promise<ThresholdConfigResponse> {
+    return apiRequest<ThresholdConfigResponse>('GET', '/api/v1/threshold-config')
+  }
+
+  /**
+   * PUT /api/v1/threshold-config — Perbarui konfigurasi threshold Fuel Ratio
+   */
+  async function updateThresholdConfig(payload: ThresholdConfigUpdatePayload): Promise<ThresholdConfigResponse> {
+    return apiRequest<ThresholdConfigResponse>('PUT', '/api/v1/threshold-config', payload)
+  }
+
+  /**
+   * POST /api/v1/model/retrain — Retrain XGBoost & PyTorch Autoencoder
+   */
+  async function retrainModels(): Promise<ModelRetrainResponse> {
+    return apiRequest<ModelRetrainResponse>('POST', '/api/v1/model/retrain')
+  }
+
+  /**
    * POST /api/v1/chatbot/query — Mining Fuel AI Chatbot Assistant query
    */
   async function fetchChatbotQuery(query: string, history?: any[]): Promise<ChatbotQueryResponse> {
@@ -354,10 +499,15 @@ export function useAiApi() {
     fetchForecast,
     fetchForecast7Days,
     fetchForecastHistory,
+    fetchModelMetrics,
     fetchAnomalyDetect,
     fetchCalculateCapacity,
     fetchGlobalCapacityTuning,
     fetchSyncBmkgWeather,
+    fetchEwhBudget,
+    fetchThresholdConfig,
+    updateThresholdConfig,
+    retrainModels,
     fetchChatbotQuery,
     fetchAiHealth,
     fetchAiReady,

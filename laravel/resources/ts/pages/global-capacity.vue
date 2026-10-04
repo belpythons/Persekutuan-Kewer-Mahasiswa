@@ -4,6 +4,8 @@ import type { CapacityResponse, GlobalCapacityTuningResponse } from '@/composabl
 import GlobalCapacityTuningCard from '@/views/production/GlobalCapacityTuningCard.vue'
 import FleetCapacityOptimizerGrid from '@/views/production/FleetCapacityOptimizerGrid.vue'
 import HourlyFleetCapacityMatrix from '@/views/production/HourlyFleetCapacityMatrix.vue'
+import CriticalEquipmentAlertBanner from '@/views/production/CriticalEquipmentAlertBanner.vue'
+import SPOComplianceTable from '@/views/production/SPOComplianceTable.vue'
 
 const { fetchForecast, fetchCalculateCapacity, fetchGlobalCapacityTuning } = useAiApi()
 
@@ -11,11 +13,13 @@ const selectedShift = ref('Shift 1 (Day)')
 const shifts = ['Shift 1 (Day)', 'Shift 2 (Night)']
 
 const isLoading = ref(true)
+const isError = ref(false)
 const capacityData = ref<CapacityResponse | null>(null)
 const tuningData = ref<GlobalCapacityTuningResponse | null>(null)
 
 const syncGlobalCapacity = async () => {
   isLoading.value = true
+  isError.value = false
   try {
     const today = new Date().toISOString().slice(0, 10)
     const forecast = await fetchForecast({ date: today }).catch(() => null)
@@ -37,6 +41,7 @@ const syncGlobalCapacity = async () => {
   } catch (error) {
     console.error('Fetch Global Capacity Tuning failed:', error)
     tuningData.value = null
+    isError.value = true
   } finally {
     isLoading.value = false
   }
@@ -82,15 +87,28 @@ onMounted(() => {
 
     <!-- MAIN GRID - Global Capacity Tuning Powered -->
     <VRow>
+      <!-- ZONE 0: OVER-CONSUMPTION ALERT (only renders when units actually exceed their tuning allocation) -->
+      <VCol cols="12">
+        <CriticalEquipmentAlertBanner :unit-tuning-comparison="tuningData?.unit_tuning_comparison ?? null" />
+      </VCol>
+
       <!-- ZONE 1: GLOBAL FLEET CAPACITY TUNING CARD -->
       <VCol cols="12">
         <GlobalCapacityTuningCard
           :tuning-data="tuningData"
           :is-loading="isLoading"
+          :is-error="isError"
+          @retry="syncGlobalCapacity"
         />
       </VCol>
 
-      <!-- ZONE 2: COMBINED FLEET CAPACITY & FUEL ALLOCATION OPTIMIZER -->
+      <!-- ZONE 2: SPO COMPLIANCE PER UNIT -->
+      <VCol cols="12">
+        <SPOComplianceTable
+          :unit-tuning-comparison="tuningData?.unit_tuning_comparison ?? null"
+          :is-loading="isLoading"
+        />
+      </VCol>
     </VRow>
   </div>
 </template>

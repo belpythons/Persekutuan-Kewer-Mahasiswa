@@ -1,17 +1,27 @@
 <script setup lang="ts">
+import type { UnitTuningComparison } from '@/composables/useAiApi'
+
 interface Props {
-  criticalUnitsCount: number
-  totalWasteFuel: number
+  unitTuningComparison: UnitTuningComparison[] | null
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  criticalUnitsCount: 14,
-  totalWasteFuel: 14820,
+  unitTuningComparison: null,
+})
+
+const overConsumingUnits = computed(() => {
+  if (!props.unitTuningComparison) return []
+  return props.unitTuningComparison.filter(u => u.tuning_status === 'OVER_CONSUMPTION')
+})
+
+const totalExcessLiters = computed(() => {
+  return overConsumingUnits.value.reduce((sum, u) => sum + Math.max(0, u.variance_liters), 0)
 })
 </script>
 
 <template>
   <VAlert
+    v-if="overConsumingUnits.length > 0"
     type="error"
     variant="tonal"
     border="start"
@@ -25,12 +35,13 @@ const props = withDefaults(defineProps<Props>(), {
       />
     </template>
     <VAlertTitle class="text-body-1 font-weight-bold mb-1">
-      ⚠️ {{ props.criticalUnitsCount }} Unit Beroperasi di Bawah SPO
+      {{ overConsumingUnits.length }} Unit Over-Consumption Terhadap Alokasi Tuning
     </VAlertTitle>
     <div class="text-body-2">
-      Deviasi Konsumsi BBM > +15% atau Produktivitas < -20% dari standar operasional.
+      Konsumsi BBM aktual melebihi alokasi tuning (OVER_CONSUMPTION) pada unit:
+      <strong>{{ overConsumingUnits.map(u => u.unit_name).join(', ') }}</strong>
       <br>
-      <strong>Total Potensi Pemborosan Solar Fleet Produksi: +{{ props.totalWasteFuel.toLocaleString('id-ID') }} Liter / Hari</strong>
+      <strong class="text-tabular-nums">Total Kelebihan Solar: +{{ totalExcessLiters.toLocaleString('id-ID', { minimumFractionDigits: 1 }) }} Liter / Hari</strong>
     </div>
   </VAlert>
 </template>

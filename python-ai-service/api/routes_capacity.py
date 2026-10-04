@@ -5,6 +5,8 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from services.capacity_engine import capacity_engine
+from models_db import EquipmentCatalog, SupportingUnitBaseline, DewateringUnitBaseline
+from services.forecasting import BASE_TOTAL_FR_BUDGET
 
 router = APIRouter(prefix="/api/v1", tags=["Capacity Determination Engine"])
 
@@ -21,6 +23,73 @@ class CapacityRequest(BaseModel):
     curah_hujan_mm: Optional[float] = Field(0.0, ge=0.0, le=200.0, example=12.5, description="Prakiraan curah hujan (mm)")
     equipment_list: Optional[List[EquipmentInput]] = Field(None, description="Daftar armada (Opsional, jika kosong mengambil dari DB)")
     nn_spike_count_by_unit: Optional[Dict[str, int]] = Field(None, example={"HD785-7MUD": 2}, description="Map bobot anomali spike unit hasil Autoencoder")
+
+@router.get("/ewh-budget", status_code=status.HTTP_200_OK)
+def get_ewh_budget(forecast_prod_bcm: float = 40000.0, db: Session = Depends(get_db)):
+    """
+    Menghitung Equipment Working Hours (EWH) & alokasi solar harian untuk fleet Support &
+    Dewatering, menggabungkan baseline PA/UA (supporting_units_baseline, dewatering_units_baseline)
+    dengan daftar model & kuantitas riil (equipment_catalogs). EWH = 24 jam x PA% x UA%, formula
+    standar mining availability — bukan tabel hardcoded di frontend.
+    """
+    def build_sector(activity_label: str, baseline_model):
+        baseline = db.query(baseline_model).first()
+        if not baseline:
+            return None
+
+        daily_ewh_hrs = round(24.0 * (baseline.pa / 100.0) * (baseline.ua / 100.0), 2)
+
+        equipment_rows = db.query(EquipmentCatalog).filter(
+            EquipmentCatalog.activity == activity_label,
+            EquipmentCatalog.qty > 0,
+        ).order_by(EquipmentCatalog.unit_name).all()
+
+        equipment = []
+        total_daily_fuel = 0.0
+        for eq in equipment_rows:
+            daily_fuel = eq.qty * eq.fc_lhr * daily_ewh_hrs
+            annual_ewh = round(daily_ewh_hrs * 365, 1)
+            fr_burden_l_bcm = round(daily_fuel / forecast_prod_bcm, 4) if forecast_prod_bcm > 0 else 0.0
+            total_daily_fuel += daily_fuel
+            equipment.append({
+                "equipment_model": eq.unit_name,
+                "active_qty": eq.qty,
+                "fc_rate_l_hr": round(eq.fc_lhr, 2),
+                "daily_ewh_hrs": daily_ewh_hrs,
+                "annual_budgeted_ewh": annual_ewh,
+                "daily_fuel_allocation_liters": round(daily_fuel, 1),
+                "annual_fuel_budget_liters": round(daily_fuel * 365, 1),
+                "fr_burden_l_bcm": fr_burden_l_bcm,
+                "fr_burden_pct": round((fr_burden_l_bcm / BASE_TOTAL_FR_BUDGET) * 100, 2) if BASE_TOTAL_FR_BUDGET else 0.0,
+            })
+
+        total_fr_burden_l_bcm = round(total_daily_fuel / forecast_prod_bcm, 4) if forecast_prod_bcm > 0 else 0.0
+
+        return {
+            "sector": activity_label,
+            "baseline_unit_code": baseline.unit_code,
+            "pa_pct": baseline.pa,
+            "ua_pct": baseline.ua,
+            "daily_ewh_hrs": daily_ewh_hrs,
+            "total_units": sum(e["active_qty"] for e in equipment),
+            "total_daily_fuel_liters": round(total_daily_fuel, 1),
+            "total_fr_burden_l_bcm": total_fr_burden_l_bcm,
+            "total_fr_burden_pct": round((total_fr_burden_l_bcm / BASE_TOTAL_FR_BUDGET) * 100, 2) if BASE_TOTAL_FR_BUDGET else 0.0,
+            "equipment": equipment,
+        }
+
+    sectors = [
+        s for s in [
+            build_sector("SUPPORT", SupportingUnitBaseline),
+            build_sector("DEWATERING", DewateringUnitBaseline),
+        ] if s is not None
+    ]
+
+    return {
+        "forecast_prod_bcm": forecast_prod_bcm,
+        "sectors": sectors,
+    }
+
 
 @router.post("/calculate-capacity", status_code=status.HTTP_200_OK)
 def calculate_combined_capacity_allocation(request: CapacityRequest, db: Session = Depends(get_db)):
@@ -73,54 +142,82 @@ def global_capacity_tuning(request: GlobalCapacityTuningRequest, db: Session = D
             detail=f"Gagal kalkulasi global capacity tuning: {str(e)}"
         )
 
+PASER_LATITUDE = -1.82
+PASER_LONGITUDE = 115.89
+
 @router.post("/weather/sync-bmkg", status_code=status.HTTP_200_OK)
 def sync_bmkg_weather(db: Session = Depends(get_db)):
     """
-    Menarik data cuaca real-time & 7-hari ke depan langsung dari API BMKG / Live Open Data (Paser, Kaltim)
-    dan menyimpannya secara otomatis ke tabel weather_daily_logs.
+    Menarik prakiraan cuaca 7-hari ke depan dari Open-Meteo (sama seperti yang dipakai
+    OpenMeteoWeatherCard.vue di frontend) dan menyimpannya ke tabel weather_daily_logs,
+    sehingga forecasting_service punya data cuaca riil untuk hari-hari mendatang alih-alih
+    harus fallback ke konstanta default.
     """
-    try:
-        from models_db import WeatherDailyLog
-        import datetime, random
+    import requests
+    from models_db import WeatherDailyLog
+    import datetime
 
-        today = datetime.date.today()
-        sample_logs = []
-        for i in range(7):
-            d = today + datetime.timedelta(days=i)
-            rain = round(random.uniform(0.0, 15.0), 1) if i > 0 else 5.2
-            temp = round(random.uniform(28.0, 34.0), 1)
-            wind = round(random.uniform(8.0, 16.0), 1)
+    try:
+        resp = requests.get(
+            "https://api.open-meteo.com/v1/forecast",
+            params={
+                "latitude": PASER_LATITUDE,
+                "longitude": PASER_LONGITUDE,
+                "daily": "precipitation_sum,temperature_2m_max,wind_speed_10m_max",
+                "timezone": "Asia/Makassar",
+                "forecast_days": 7,
+            },
+            timeout=10,
+        )
+        resp.raise_for_status()
+        daily = resp.json()["daily"]
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Gagal mengambil prakiraan cuaca dari Open-Meteo: {str(e)}"
+        )
+
+    try:
+        synced_logs = []
+        for i, date_str in enumerate(daily["time"]):
+            d = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
+            rain = round(float(daily["precipitation_sum"][i] or 0.0), 1)
+            temp = round(float(daily["temperature_2m_max"][i]), 1)
+            wind = round(float(daily["wind_speed_10m_max"][i]), 1)
 
             w_log = db.query(WeatherDailyLog).filter(WeatherDailyLog.log_date == d).first()
-            if not w_log:
-                w_log = WeatherDailyLog(
+            if w_log:
+                w_log.curah_hujan_mm = rain
+                w_log.temp_max_c = temp
+                w_log.kecepatan_angin_kmh = wind
+            else:
+                db.add(WeatherDailyLog(
                     log_date=d,
                     curah_hujan_mm=rain,
                     temp_max_c=temp,
                     kecepatan_angin_kmh=wind
-                )
-                db.add(w_log)
+                ))
 
-            sample_logs.append({
-                "date": d.strftime("%Y-%m-%d"),
+            synced_logs.append({
+                "date": date_str,
                 "curah_hujan_mm": rain,
                 "temp_max_c": temp,
                 "kecepatan_angin_kmh": wind,
-                "source": "OPEN_METEO_PASER_LIVE"
+                "source": "OPEN_METEO_FORECAST_API"
             })
-        
+
         db.commit()
         return {
             "status": "success",
-            "source": "OPEN_METEO_PASER_LIVE",
+            "source": "OPEN_METEO_FORECAST_API",
             "location": "Paser / Batu Kajang, Kalimantan Timur",
-            "records_synced": len(sample_logs),
-            "data": sample_logs
+            "records_synced": len(synced_logs),
+            "data": synced_logs
         }
     except Exception as e:
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Gagal melakukan sync cuaca BMKG: {str(e)}"
+            detail=f"Gagal menyimpan hasil sync cuaca ke database: {str(e)}"
         )
 

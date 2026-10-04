@@ -21,15 +21,9 @@ interface AnomalousUnit {
   maxFr: number | null
 }
 
-// Default data (fallback)
-const defaultUnits: AnomalousUnit[] = [
-  { rank: 1, unitCode: 'HD785-7', activity: 'Hauling', spikeCount: 366, fcNormal: 77.0, fcSpike: 80.78, maxFr: 182.24 },
-  { rank: 2, unitCode: 'EX2600-6', activity: 'Loading', spikeCount: 366, fcNormal: 187.0, fcSpike: 192.28, maxFr: null },
-  { rank: 3, unitCode: 'PC2000-11R', activity: 'Loading', spikeCount: 9, fcNormal: 100.0, fcSpike: 185.53, maxFr: null },
-  { rank: 4, unitCode: 'EGS380-6', activity: 'Dewatering', spikeCount: 9, fcNormal: 10.0, fcSpike: 10.70, maxFr: null },
-  { rank: 5, unitCode: 'D375A6R', activity: 'Supporting', spikeCount: 5, fcNormal: 67.0, fcSpike: 72.10, maxFr: null },
-]
-
+// ponytail: stdFcMap duplicates equipment_catalogs.fc_lhr (already in the DB) as a client-side
+// fallback for when the API's avg_fc_normal comes back 0. Real fix is making the backend's
+// spike_report_per_unit always populate avg_fc_normal from equipment_catalogs; flagged separately.
 const stdFcMap: Record<string, number> = {
   'EX2600-6': 187.0, 'HT 2600': 190.0, 'PC 1250': 93.3, 'PC1250-11R': 93.3,
   'PC 2000': 125.0, 'PC2000-11R': 100.0, 'PC 3400': 195.6, 'HD785-7': 75.0,
@@ -76,9 +70,9 @@ const activityColor = (activity: string) => {
 }
 
 const fcDeviation = (normal: number, spike: number) => {
-  if (normal === 0 || normal === spike) return '16.2'
+  if (normal === 0) return '0.0'
   const dev = ((spike - normal) / normal) * 100
-  return dev > 0 ? dev.toFixed(1) : Math.abs(dev).toFixed(1)
+  return Math.abs(dev).toFixed(1)
 }
 </script>
 
@@ -129,7 +123,12 @@ const fcDeviation = (normal: number, spike: number) => {
           </tr>
         </thead>
         <tbody>
-          <tr v-if="topUnits.length === 0">
+          <tr v-if="isLoading">
+            <td colspan="7" class="text-center py-6">
+              <VProgressCircular indeterminate color="primary" size="28" />
+            </td>
+          </tr>
+          <tr v-else-if="topUnits.length === 0">
             <td colspan="7" class="text-center py-6 text-medium-emphasis">
               <VIcon icon="bx-check-shield" size="32" class="mb-1 text-success d-block mx-auto" />
               Tidak ada anomali spike unit terdeteksi hari ini.

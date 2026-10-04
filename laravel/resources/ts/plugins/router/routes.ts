@@ -1,5 +1,7 @@
 export const routes = [
   { path: '/', redirect: '/dashboard' },
+  { path: '/login', redirect: '/dashboard' },
+  { path: '/register', redirect: '/dashboard' },
   {
     path: '/',
     component: () => import('@/layouts/default.vue'),
@@ -21,8 +23,8 @@ export const routes = [
         component: () => import('@/pages/forecasting-ai.vue'),
       },
       {
-        path: 'account-settings',
-        component: () => import('@/pages/account-settings.vue'),
+        path: 'support-weather-mlops',
+        component: () => import('@/pages/support-weather-mlops.vue'),
       },
     ],
   },
@@ -31,17 +33,10 @@ export const routes = [
     component: () => import('@/layouts/blank.vue'),
     children: [
       {
-        path: 'login',
-        component: () => import('@/pages/login.vue'),
-      },
-      {
-        path: 'register',
-        component: () => import('@/pages/register.vue'),
-      },
-      {
         path: '/:pathMatch(.*)*',
         component: () => import('@/pages/[...error].vue'),
       },
     ],
   },
 ]
+

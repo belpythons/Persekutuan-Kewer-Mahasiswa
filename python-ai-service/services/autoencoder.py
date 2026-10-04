@@ -234,17 +234,26 @@ class AutoencoderAnomalyService:
         df_records = pd.DataFrame(records)
         
         # Calculate FC_Ratio, Unit_FR_Ratio, Unit_Fuel_Ratio if not provided
+        std_fc_map = {
+            "EX2600-6": 187.0, "HT 2600": 190.0, "PC 1250": 93.3, "PC1250-11R": 93.3,
+            "PC 2000": 125.0, "PC2000-11R": 100.0, "PC 3400": 195.6, "HD785-7": 75.0,
+            "HD785-7MUD": 75.0, "HD785-SPIKE": 75.0, "EX2600-SPIKE": 187.0,
+            "MID DRILLING": 54.2, "SMALL DRILLING": 28.1, "Dozer375": 54.2,
+            "D375A6R": 67.0, "Water Pump": 36.0, "Booster Pump": 40.0, "Dragflow": 36.0,
+            "EGS380-6": 10.0
+        }
         if 'FC_Ratio' not in df_records.columns:
             if 'FC_Base' in df_records.columns and (df_records['FC_Base'] > 0).all():
                 df_records['FC_Ratio'] = df_records['FC_Actual'] / df_records['FC_Base']
             else:
-                df_records['FC_Ratio'] = df_records['FC_Actual'] / df_records['FC_Actual'].mean()
+                base_fcs = df_records['Unit'].map(lambda u: std_fc_map.get(u, 75.0))
+                df_records['FC_Ratio'] = df_records['FC_Actual'] / base_fcs
                 
         if 'Unit_FR_Ratio' not in df_records.columns:
-            df_records['Unit_FR_Ratio'] = df_records['Unit_FR'] / df_records['Unit_FR'].mean()
+            df_records['Unit_FR_Ratio'] = df_records['Unit_FR'] / 0.285
             
         if 'Unit_Fuel_Ratio' not in df_records.columns:
-            df_records['Unit_Fuel_Ratio'] = df_records['Unit_Fuel_L_Day'] / df_records['Unit_Fuel_L_Day'].mean()
+            df_records['Unit_Fuel_Ratio'] = df_records['Unit_Fuel_L_Day'] / 1500.0
                 
         # Susun fitur AE
         X_input = df_records[AE_FEATURE_COLUMNS].values

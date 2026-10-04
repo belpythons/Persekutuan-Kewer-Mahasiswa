@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "ai-service",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["D:\\KOD ING\\Persekutuan-Kewer-Mahasiswa\\python-ai-service\\main.py"],
+      "port": 8002
+    },
+    {
+      "name": "laravel-backend",
+      "runtimeExecutable": "php",
+      "runtimeArgs": ["D:\\KOD ING\\Persekutuan-Kewer-Mahasiswa\\laravel\\artisan", "serve", "--port=8010"],
+      "port": 8010
+    },
+    {
+      "name": "vite-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "D:\\KOD ING\\Persekutuan-Kewer-Mahasiswa\\laravel", "run", "dev"],
+      "port": 5173
+    }
+  ]
+}

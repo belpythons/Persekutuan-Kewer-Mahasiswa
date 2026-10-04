@@ -3,10 +3,13 @@ from pydantic import BaseModel, Field
 from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
 import datetime
+import json
+import os
 
 from database import get_db
 from models_db import WeatherDailyLog, DailyForecastLog
-from services.forecasting import forecasting_service
+from services.forecasting import forecasting_service, MODELS_DIR
+from services.threshold_config import get_threshold_config, update_threshold_config
 
 router = APIRouter(prefix="/api/v1", tags=["Forecasting Engine"])
 
@@ -35,6 +38,7 @@ class ForecastResponse(BaseModel):
     daily_prod_bcm: float
     haul_distance_m: float
     features_input: Dict[str, Any]
+    feature_contributions: Optional[Dict[str, float]] = None
 
 @router.get("/weather-by-date/{date_str}", status_code=status.HTTP_200_OK)
 def get_weather_by_date(date_str: str, db: Session = Depends(get_db)):
@@ -103,6 +107,114 @@ def predict_7days_horizon_fuel_ratio(request: Forecast7DaysRequest, db: Session 
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Gagal melakukan inferensi 7-day horizon forecasting: {str(e)}"
         )
+
+@router.post("/model/retrain", status_code=status.HTTP_200_OK)
+def retrain_models(db: Session = Depends(get_db)):
+    """
+    Melatih ulang XGBoost Forecasting Engine & PyTorch Autoencoder dari data terkini di
+    database, lalu me-reload model yang sedang aktif di memory. Operasi sinkron (biasanya
+    selesai dalam hitungan detik untuk ukuran dataset saat ini) — tidak ada job queue karena
+    ini aksi admin manual, bukan sesuatu yang berjalan sering.
+    """
+    from pipelines.train_xgboost import train_xgboost_model
+    from services.autoencoder import autoencoder_service
+
+    result = {"xgboost": None, "autoencoder": None, "errors": []}
+
+    try:
+        xgb_metadata = train_xgboost_model(db)
+        forecasting_service._load_model()
+        result["xgboost"] = {
+            "status": "retrained",
+            "metrics": xgb_metadata.get("metrics", {}),
+        }
+    except Exception as e:
+        result["errors"].append(f"XGBoost retrain gagal: {str(e)}")
+
+    try:
+        ae_metadata = autoencoder_service.train(db)
+        result["autoencoder"] = {
+            "status": "retrained",
+            "evaluation": ae_metadata.get("evaluation", {}),
+        }
+    except Exception as e:
+        result["errors"].append(f"Autoencoder retrain gagal: {str(e)}")
+
+    if result["xgboost"] is None and result["autoencoder"] is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Retraining gagal total: {'; '.join(result['errors'])}"
+        )
+
+    return result
+
+
+@router.get("/model-metrics", status_code=status.HTTP_200_OK)
+def get_model_metrics():
+    """
+    Mengembalikan metrik evaluasi riil dari training terakhir (R², MAE) untuk XGBoost
+    Forecasting Engine dan PyTorch Autoencoder, dibaca langsung dari metadata.json yang
+    ditulis oleh training pipeline — bukan angka hardcoded di frontend.
+    """
+    xgb_path = os.path.join(MODELS_DIR, "metadata.json")
+    ae_path = os.path.join(MODELS_DIR, "autoencoder_metadata.json")
+
+    if not os.path.exists(xgb_path):
+        raise HTTPException(status_code=404, detail="Model metadata belum tersedia. Jalankan training pipeline terlebih dahulu.")
+
+    with open(xgb_path, "r") as f:
+        xgb_metadata = json.load(f)
+
+    ae_metadata = None
+    if os.path.exists(ae_path):
+        with open(ae_path, "r") as f:
+            ae_metadata = json.load(f)
+
+    return {
+        "xgboost": {
+            "model_name": xgb_metadata.get("model_name"),
+            "version": xgb_metadata.get("version"),
+            "feature_count": xgb_metadata.get("feature_count"),
+            "cv_strategy": xgb_metadata.get("cv_strategy"),
+            "metrics": xgb_metadata.get("metrics", {}),
+        },
+        "autoencoder": {
+            "model_name": ae_metadata.get("model_name"),
+            "version": ae_metadata.get("version"),
+            "global_threshold": ae_metadata.get("global_threshold"),
+            "evaluation": ae_metadata.get("evaluation", {}),
+        } if ae_metadata else None,
+    }
+
+
+class ThresholdConfigUpdate(BaseModel):
+    budget_baseline: Optional[float] = Field(None, gt=0, example=1.018, description="Baseline Total Fuel Ratio Budget (L/BCM)")
+    warning_pct: Optional[float] = Field(None, ge=0, le=100, example=8.0, description="Persentase ambang Warning di atas baseline")
+    critical_pct: Optional[float] = Field(None, ge=0, le=100, example=18.0, description="Persentase ambang Critical di atas baseline")
+
+
+@router.get("/threshold-config", status_code=status.HTTP_200_OK)
+def get_threshold_config_endpoint(db: Session = Depends(get_db)):
+    """
+    Mengambil konfigurasi threshold Fuel Ratio aktif (budget baseline, persentase Warning/Critical).
+    Disimpan di cfg_system_mlops, dibaca langsung oleh forecasting_service — bukan konstanta
+    hardcoded yang terduplikasi di beberapa file frontend.
+    """
+    return get_threshold_config(db)
+
+
+@router.put("/threshold-config", status_code=status.HTTP_200_OK)
+def update_threshold_config_endpoint(request: ThresholdConfigUpdate, db: Session = Depends(get_db)):
+    """
+    Memperbarui konfigurasi threshold Fuel Ratio. Field yang dikosongkan tidak diubah.
+    """
+    return update_threshold_config(
+        db,
+        budget_baseline=request.budget_baseline,
+        warning_pct=request.warning_pct,
+        critical_pct=request.critical_pct,
+    )
+
 
 @router.get("/forecast-history", status_code=status.HTTP_200_OK)
 def get_forecast_history(days: int = 30, db: Session = Depends(get_db)):

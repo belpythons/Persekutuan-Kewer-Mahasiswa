@@ -5,6 +5,7 @@ import LoadingFleetSummaryCard from '@/views/production/LoadingFleetSummaryCard.
 import HaulingFleetSummaryCard from '@/views/production/HaulingFleetSummaryCard.vue'
 import FleetCapacityOptimizerGrid from '@/views/production/FleetCapacityOptimizerGrid.vue'
 import HourlyFleetCapacityMatrix from '@/views/production/HourlyFleetCapacityMatrix.vue'
+import NonProductionFuelBurdenDonut from '@/views/support/NonProductionFuelBurdenDonut.vue'
 
 const { fetchForecast, fetchCalculateCapacity } = useAiApi()
 
@@ -102,10 +103,17 @@ onMounted(() => {
       </VCol>
 
       <!-- ZONE 2: COMBINED FLEET CAPACITY & FUEL ALLOCATION OPTIMIZER -->
-      <VCol cols="12" class="mt-2">
+      <VCol cols="12" md="8" class="mt-2">
         <FleetCapacityOptimizerGrid
           :activity-breakdown="capacityData?.activity_breakdown ?? null"
           :total-fuel="capacityData?.total_combined_fuel_lday ?? null"
+        />
+      </VCol>
+
+      <VCol cols="12" md="4" class="mt-2">
+        <NonProductionFuelBurdenDonut
+          :activity-breakdown="capacityData?.activity_breakdown ?? null"
+          :is-loading="isLoading"
         />
       </VCol>
 

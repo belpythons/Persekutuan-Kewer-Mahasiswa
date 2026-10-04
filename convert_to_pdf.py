@@ -2,9 +2,10 @@ import os
 import subprocess
 import markdown
 
-md_path = "/Users/yusuf/Documents/Project/Persekutuan-Kewer-Mahasiswa/USER_GUIDE_AND_INSTALLATION.md"
-html_path = "/Users/yusuf/Documents/Project/Persekutuan-Kewer-Mahasiswa/USER_GUIDE_AND_INSTALLATION.html"
-pdf_path = "/Users/yusuf/Documents/Project/Persekutuan-Kewer-Mahasiswa/USER_GUIDE_AND_INSTALLATION.pdf"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+md_path = os.path.join(BASE_DIR, "USER_GUIDE_AND_INSTALLATION.md")
+html_path = os.path.join(BASE_DIR, "USER_GUIDE_AND_INSTALLATION.html")
+pdf_path = os.path.join(BASE_DIR, "USER_GUIDE_AND_INSTALLATION.pdf")
 
 with open(md_path, "r", encoding="utf-8") as f:
     md_content = f.read()

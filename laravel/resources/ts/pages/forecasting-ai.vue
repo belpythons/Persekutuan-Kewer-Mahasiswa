@@ -3,6 +3,7 @@ import ScenarioSimulatorControls from '@/views/forecasting/ScenarioSimulatorCont
 import ModelMetricsCard from '@/views/forecasting/ModelMetricsCard.vue'
 import TimeSeriesForecastChart from '@/views/forecasting/TimeSeriesForecastChart.vue'
 import MiningFuelChatbotWidget from '@/views/forecasting/MiningFuelChatbotWidget.vue'
+import ActualVsForecastTable from '@/views/dashboard/ActualVsForecastTable.vue'
 </script>
 
 <template>
@@ -35,6 +36,11 @@ import MiningFuelChatbotWidget from '@/views/forecasting/MiningFuelChatbotWidget
 
       <VCol cols="12" lg="5">
         <MiningFuelChatbotWidget class="h-100" />
+      </VCol>
+
+      <!-- ZONE 4: DETAIL AUDIT TABLE -->
+      <VCol cols="12">
+        <ActualVsForecastTable />
       </VCol>
     </VRow>
   </div>

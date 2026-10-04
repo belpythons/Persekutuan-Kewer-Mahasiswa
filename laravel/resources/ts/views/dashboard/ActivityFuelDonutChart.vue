@@ -40,7 +40,7 @@ const chartOptions = computed(() => {
       type: 'donut' as const,
     },
     labels: chartLabels.value,
-    colors: ['#E53935', '#1E88E5', '#FFB400', '#56CA00'],
+    colors: [currentTheme.primary, currentTheme.secondary, currentTheme.warning, currentTheme.success],
     legend: {
       position: 'bottom' as const,
       fontSize: '12px',

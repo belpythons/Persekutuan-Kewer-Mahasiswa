@@ -4,6 +4,7 @@ import datetime
 import joblib
 import pandas as pd
 import numpy as np
+import xgboost as xgb
 from typing import Dict, Any, List, Optional
 import logging
 
@@ -12,6 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database import SessionLocal
 from models_db import DailyForecastLog, WeatherDailyLog
 from pipelines.feature_engineering import build_features, FEATURE_COLUMNS
+from services.threshold_config import get_threshold_config
 
 logger = logging.getLogger(__name__)
 
@@ -141,11 +143,30 @@ class ForecastingService:
         
         # Prediksi XGBoost
         forecast_fr = float(self.model.predict(X_scaled)[0])
-        
-        # Hitung Dynamic Thresholds (Baseline +8% dan +18%)
-        warning_threshold = BASE_TOTAL_FR_BUDGET * 1.08  # 1.0994
-        critical_threshold = BASE_TOTAL_FR_BUDGET * 1.18 # 1.2012
-        
+
+        # Feature Contributions (SHAP values via XGBoost pred_contribs) — kontribusi riil tiap
+        # variabel terhadap prediksi, bukan feature_importance global model. Transparansi untuk
+        # kartu forecast (lihat ScenarioSimulatorControls.vue).
+        feature_contributions = None
+        try:
+            booster = self.model.get_booster()
+            dmatrix = xgb.DMatrix(X_scaled, feature_names=FEATURE_COLUMNS)
+            contribs = booster.predict(dmatrix, pred_contribs=True)[0]
+            feature_contributions = {col: round(float(contribs[i]), 6) for i, col in enumerate(FEATURE_COLUMNS)}
+            feature_contributions["base_value"] = round(float(contribs[-1]), 6)
+        except Exception as e:
+            logger.warning(f"Gagal menghitung feature contributions: {e}")
+
+        # Dynamic Thresholds — dibaca dari cfg_system_mlops (editable via /api/v1/threshold-config);
+        # fallback ke konstanta BASE_TOTAL_FR_BUDGET bila tidak ada db_session (mis. unit test murni).
+        if db_session is not None:
+            cfg = get_threshold_config(db_session)
+            warning_threshold = cfg["budget_baseline"] * (1 + cfg["warning_pct"] / 100.0)
+            critical_threshold = cfg["budget_baseline"] * (1 + cfg["critical_pct"] / 100.0)
+        else:
+            warning_threshold = BASE_TOTAL_FR_BUDGET * 1.08  # 1.0994
+            critical_threshold = BASE_TOTAL_FR_BUDGET * 1.18  # 1.2012
+
         status = "NORMAL"
         if forecast_fr >= critical_threshold:
             status = "CRITICAL"
@@ -160,7 +181,8 @@ class ForecastingService:
             "critical_threshold": round(critical_threshold, 4),
             "daily_prod_bcm": daily_prod_bcm,
             "haul_distance_m": haul_distance_m,
-            "features_input": feature_dict
+            "features_input": feature_dict,
+            "feature_contributions": feature_contributions
         }
         
         # Update / Insert log forecast di database

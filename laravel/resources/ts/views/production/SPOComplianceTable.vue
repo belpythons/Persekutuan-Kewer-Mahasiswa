@@ -1,63 +1,70 @@
 <script setup lang="ts">
-interface SPORow {
-  activity: string
-  unit_model: string
-  unit_code: string
-  spo_target_bcm_hr: number
-  actual_bcm_hr: number
-  spo_target_fc_lhr: number
-  actual_fc_lhr: number
-  deviasi_fc_pct: number
-  total_fuel_l_day: number
-  nn_spike_events: number
+import type { UnitTuningComparison } from '@/composables/useAiApi'
+
+interface Props {
+  unitTuningComparison: UnitTuningComparison[] | null
+  isLoading: boolean
 }
+
+const props = withDefaults(defineProps<Props>(), {
+  unitTuningComparison: null,
+  isLoading: false,
+})
 
 const activityFilter = ref('ALL')
 
-const tableData = ref<SPORow[]>([
-  { activity: 'LOADING', unit_model: 'PC2000-11R', unit_code: 'EX-2004', spo_target_bcm_hr: 920.0, actual_bcm_hr: 650.0, spo_target_fc_lhr: 100.0, actual_fc_lhr: 185.53, deviasi_fc_pct: 85.5, total_fuel_l_day: 10900.0, nn_spike_events: 9 },
-  { activity: 'LOADING', unit_model: 'EX2600-6', unit_code: 'EX-2601', spo_target_bcm_hr: 920.0, actual_bcm_hr: 880.0, spo_target_fc_lhr: 187.0, actual_fc_lhr: 192.28, deviasi_fc_pct: 2.8, total_fuel_l_day: 17428.4, nn_spike_events: 366 },
-  { activity: 'HAULING', unit_model: 'HD785-7', unit_code: 'DT-042', spo_target_bcm_hr: 483.57, actual_bcm_hr: 450.0, spo_target_fc_lhr: 77.0, actual_fc_lhr: 80.78, deviasi_fc_pct: 4.9, total_fuel_l_day: 1615.6, nn_spike_events: 366 },
-  { activity: 'HAULING', unit_model: 'HD785-8', unit_code: 'DT-416', spo_target_bcm_hr: 520.0, actual_bcm_hr: 495.0, spo_target_fc_lhr: 85.0, actual_fc_lhr: 88.5, deviasi_fc_pct: 4.1, total_fuel_l_day: 1770.0, nn_spike_events: 5 },
-  { activity: 'LOADING', unit_model: 'PC1250', unit_code: 'EX-1203', spo_target_bcm_hr: 350.0, actual_bcm_hr: 280.0, spo_target_fc_lhr: 65.0, actual_fc_lhr: 72.0, deviasi_fc_pct: 10.8, total_fuel_l_day: 1440.0, nn_spike_events: 3 },
-])
+const activities = computed(() => {
+  if (!props.unitTuningComparison) return ['ALL']
+  const unique = [...new Set(props.unitTuningComparison.map(u => u.activity))]
+  return ['ALL', ...unique]
+})
 
 const filteredData = computed(() => {
-  if (activityFilter.value === 'ALL') return tableData.value
-  return tableData.value.filter(r => r.activity === activityFilter.value)
+  if (!props.unitTuningComparison) return []
+  if (activityFilter.value === 'ALL') return props.unitTuningComparison
+  return props.unitTuningComparison.filter(r => r.activity === activityFilter.value)
 })
 
 const headers = [
   { title: 'Activity', key: 'activity' },
-  { title: 'Model', key: 'unit_model' },
-  { title: 'Unit Code', key: 'unit_code' },
-  { title: 'SPO BCM/hr', key: 'spo_target_bcm_hr', align: 'end' as const },
-  { title: 'Actual BCM/hr', key: 'actual_bcm_hr', align: 'end' as const },
-  { title: 'SPO FC', key: 'spo_target_fc_lhr', align: 'end' as const },
-  { title: 'Actual FC', key: 'actual_fc_lhr', align: 'end' as const },
-  { title: 'Deviasi %', key: 'deviasi_fc_pct', align: 'end' as const },
-  { title: 'Solar (L/Day)', key: 'total_fuel_l_day', align: 'end' as const },
-  { title: 'Spikes', key: 'nn_spike_events', align: 'center' as const },
+  { title: 'Unit', key: 'unit_name' },
+  { title: 'Fleet Qty', key: 'fleet_qty', align: 'end' as const },
+  { title: 'Std FC (L/hr)', key: 'std_fc_lhr', align: 'end' as const },
+  { title: 'Alokasi Tuning (L/hari)', key: 'tuned_fuel_allocation_lday', align: 'end' as const },
+  { title: 'Aktual (L/hari)', key: 'actual_fuel_consumed_lday', align: 'end' as const },
+  { title: 'Variansi %', key: 'variance_pct', align: 'end' as const },
+  { title: 'Spikes', key: 'spike_anomaly_count', align: 'center' as const },
+  { title: 'Compliance', key: 'tuning_status', align: 'center' as const },
 ]
 
-const activityColor = (a: string) => a === 'LOADING' ? 'primary' : a === 'HAULING' ? 'info' : 'warning'
+const activityColor = (a: string) => a.toUpperCase() === 'LOADING' ? 'primary' : a.toUpperCase() === 'HAULING' ? 'info' : 'warning'
+
+// SPO (Standar Prosedur Operasional) compliance is derived from the fuel-tuning variance the
+// AI engine already computes — a unit tracking its tuned allocation is compliant; one burning
+// meaningfully more than allocated is not. No separate "SPO compliance" ground truth exists
+// in the schema, so this reuses the real tuning_status rather than inventing a new metric.
+const complianceConfig = (status: UnitTuningComparison['tuning_status']) => {
+  switch (status) {
+    case 'EFFICIENT': return { label: 'Compliant', color: 'success' }
+    case 'WARNING': return { label: 'Partial', color: 'warning' }
+    case 'OVER_CONSUMPTION': return { label: 'Non-Compliant', color: 'error' }
+    default: return { label: status, color: 'default' }
+  }
+}
 </script>
 
 <template>
   <VCard>
     <VCardItem>
-      <VCardTitle>SPO Compliance Audit — Detail Unit</VCardTitle>
-      <VCardSubtitle>Kepatuhan konsumsi solar terhadap Standar Prosedur Operasional</VCardSubtitle>
+      <VCardTitle>SPO Compliance — Variansi Alokasi Tuning per Unit</VCardTitle>
+      <VCardSubtitle>Kepatuhan konsumsi solar terhadap alokasi tuning kapasitas (AI Engine)</VCardSubtitle>
     </VCardItem>
     <VCardText>
       <VRow class="mb-4">
-        <VCol
-          cols="12"
-          sm="4"
-        >
+        <VCol cols="12" sm="4">
           <VSelect
             v-model="activityFilter"
-            :items="['ALL', 'LOADING', 'HAULING']"
+            :items="activities"
             label="Filter Activity"
             density="compact"
           />
@@ -67,60 +74,58 @@ const activityColor = (a: string) => a === 'LOADING' ? 'primary' : a === 'HAULIN
       <VDataTable
         :headers="headers"
         :items="filteredData"
+        :loading="isLoading"
         :items-per-page="10"
         density="compact"
         class="text-no-wrap"
+        no-data-text="Belum ada data tuning kapasitas."
       >
         <template #item.activity="{ item }">
-          <VChip
-            :color="activityColor(item.activity)"
-            size="small"
-            variant="tonal"
-          >
+          <VChip :color="activityColor(item.activity)" size="small" variant="tonal">
             {{ item.activity }}
           </VChip>
         </template>
-        <template #item.unit_model="{ item }">
-          <strong>{{ item.unit_model }}</strong>
+        <template #item.unit_name="{ item }">
+          <code>{{ item.unit_name }}</code>
         </template>
-        <template #item.unit_code="{ item }">
-          <code>{{ item.unit_code }}</code>
+        <template #item.std_fc_lhr="{ item }">
+          <span class="text-medium-emphasis text-tabular-nums">{{ item.std_fc_lhr.toFixed(1) }}</span>
         </template>
-        <template #item.spo_target_bcm_hr="{ item }">
-          <span class="text-medium-emphasis">{{ item.spo_target_bcm_hr.toFixed(1) }}</span>
+        <template #item.tuned_fuel_allocation_lday="{ item }">
+          <span class="text-tabular-nums">{{ item.tuned_fuel_allocation_lday.toLocaleString('id-ID', { minimumFractionDigits: 1 }) }}</span>
         </template>
-        <template #item.actual_bcm_hr="{ item }">
-          <span :class="item.actual_bcm_hr < item.spo_target_bcm_hr * 0.8 ? 'text-error font-weight-bold' : ''">
-            {{ item.actual_bcm_hr.toFixed(1) }}
+        <template #item.actual_fuel_consumed_lday="{ item }">
+          <span
+            class="text-tabular-nums"
+            :class="item.tuning_status === 'OVER_CONSUMPTION' ? 'text-error font-weight-bold' : ''"
+          >
+            {{ item.actual_fuel_consumed_lday.toLocaleString('id-ID', { minimumFractionDigits: 1 }) }}
           </span>
         </template>
-        <template #item.spo_target_fc_lhr="{ item }">
-          <span class="text-medium-emphasis">{{ item.spo_target_fc_lhr.toFixed(1) }}</span>
-        </template>
-        <template #item.actual_fc_lhr="{ item }">
-          <span :class="item.actual_fc_lhr > item.spo_target_fc_lhr ? 'text-error font-weight-bold' : ''">
-            {{ item.actual_fc_lhr.toFixed(2) }}
+        <template #item.variance_pct="{ item }">
+          <span
+            class="text-tabular-nums"
+            :class="item.variance_pct > 0 ? 'text-error' : 'text-success'"
+          >
+            {{ item.variance_pct > 0 ? '+' : '' }}{{ item.variance_pct.toFixed(1) }}%
           </span>
         </template>
-        <template #item.deviasi_fc_pct="{ item }">
+        <template #item.spike_anomaly_count="{ item }">
           <VChip
-            :color="item.deviasi_fc_pct > 15 ? 'error' : item.deviasi_fc_pct > 5 ? 'warning' : 'success'"
+            :color="item.spike_anomaly_count > 0 ? 'error' : 'default'"
+            size="small"
+            :variant="item.spike_anomaly_count > 0 ? 'flat' : 'outlined'"
+          >
+            {{ item.spike_anomaly_count }}
+          </VChip>
+        </template>
+        <template #item.tuning_status="{ item }">
+          <VChip
+            :color="complianceConfig(item.tuning_status).color"
             size="small"
             variant="flat"
           >
-            +{{ item.deviasi_fc_pct.toFixed(1) }}%
-          </VChip>
-        </template>
-        <template #item.total_fuel_l_day="{ item }">
-          <strong>{{ item.total_fuel_l_day.toLocaleString('id-ID', { minimumFractionDigits: 1 }) }}</strong>
-        </template>
-        <template #item.nn_spike_events="{ item }">
-          <VChip
-            :color="item.nn_spike_events > 5 ? 'error' : 'default'"
-            size="small"
-            :variant="item.nn_spike_events > 5 ? 'flat' : 'outlined'"
-          >
-            {{ item.nn_spike_events }}
+            {{ complianceConfig(item.tuning_status).label }}
           </VChip>
         </template>
       </VDataTable>

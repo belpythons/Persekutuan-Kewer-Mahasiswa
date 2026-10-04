@@ -2,7 +2,7 @@
 import type { ActivityBreakdown } from '@/composables/useAiApi'
 
 interface Props {
-  fleetType: 'Loading' | 'Hauling'
+  fleetType?: 'Loading' | 'Hauling'
   activityData: ActivityBreakdown | null
   isLoading?: boolean
 }

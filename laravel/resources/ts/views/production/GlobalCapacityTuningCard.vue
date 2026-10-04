@@ -4,12 +4,16 @@ import type { GlobalCapacityTuningResponse } from '@/composables/useAiApi'
 interface Props {
   tuningData: GlobalCapacityTuningResponse | null
   isLoading?: boolean
+  isError?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   tuningData: null,
   isLoading: false,
+  isError: false,
 })
+
+const emit = defineEmits<{ retry: [] }>()
 
 const statusColor = computed(() => {
   const status = props.tuningData?.global_fuel_tuning_summary?.global_tuning_status
@@ -39,12 +43,13 @@ const getActivityColor = (activity: string) => {
       <VCardTitle class="d-flex align-center flex-wrap gap-2 text-h6 font-weight-bold tracking-tight">
         <span>Global Fleet Capacity Tuning & Fuel Variance Analysis</span>
         <VChip
+          v-if="props.tuningData"
           color="primary"
           size="x-small"
           variant="tonal"
           class="font-weight-medium ms-1"
         >
-          324 Fleet Units Tuned
+          {{ props.tuningData.global_capacity_summary.total_fleet_units }} Fleet Units Tuned
         </VChip>
       </VCardTitle>
 
@@ -52,14 +57,14 @@ const getActivityColor = (activity: string) => {
         Analisis alokasi BBM teoritis vs konsumsi harian aktual seluruh armada Kideco
       </VCardSubtitle>
 
-      <template #append>
+      <template v-if="props.tuningData" #append>
         <VChip
           :color="statusColor"
           variant="tonal"
           class="font-weight-bold px-3"
         >
           <VIcon icon="bx-check-shield" start size="16" />
-          {{ props.tuningData?.global_fuel_tuning_summary?.global_tuning_status ?? 'OPTIMAL' }}
+          {{ props.tuningData.global_fuel_tuning_summary.global_tuning_status }}
         </VChip>
       </template>
     </VCardItem>
@@ -67,6 +72,14 @@ const getActivityColor = (activity: string) => {
     <VCardText class="pt-2">
       <div v-if="props.isLoading" class="d-flex justify-center my-6">
         <VProgressCircular indeterminate color="primary" />
+      </div>
+
+      <div v-else-if="props.isError || !props.tuningData" class="d-flex flex-column align-center justify-center text-center py-8">
+        <VIcon icon="bx-error-circle" size="40" class="text-error mb-3" />
+        <p class="text-body-2 text-medium-emphasis mb-3">Gagal memuat data tuning kapasitas global.</p>
+        <VBtn variant="tonal" color="primary" size="small" :loading="props.isLoading" @click="emit('retry')">
+          Coba Lagi
+        </VBtn>
       </div>
 
       <template v-else>
@@ -77,11 +90,11 @@ const getActivityColor = (activity: string) => {
             <div class="metric-item border rounded-lg p-3">
               <span class="text-caption text-medium-emphasis font-weight-medium">Effective Capacity</span>
               <h4 class="text-h5 font-weight-bold text-high-emphasis my-1">
-                {{ (props.tuningData?.global_capacity_summary?.effective_cap_bcmday ?? 418557.6).toLocaleString('id-ID') }}
+                {{ (props.tuningData?.global_capacity_summary?.effective_cap_bcmday ?? 0).toLocaleString('id-ID') }}
                 <span class="text-caption text-medium-emphasis">BCM/day</span>
               </h4>
               <span class="text-caption text-primary font-weight-medium">
-                Utilisasi Armada: {{ props.tuningData?.global_capacity_summary?.fleet_utilization_pct ?? 10.0 }}%
+                Utilisasi Armada: {{ props.tuningData?.global_capacity_summary?.fleet_utilization_pct ?? 0 }}%
               </span>
             </div>
           </VCol>
@@ -91,11 +104,11 @@ const getActivityColor = (activity: string) => {
             <div class="metric-item border rounded-lg p-3">
               <span class="text-caption text-medium-emphasis font-weight-medium">Operating vs Standby</span>
               <h4 class="text-h5 font-weight-bold text-high-emphasis my-1">
-                {{ props.tuningData?.global_capacity_summary?.required_operating_units ?? 33 }}
-                <span class="text-caption text-medium-emphasis">/ {{ props.tuningData?.global_capacity_summary?.total_fleet_units ?? 324 }} Unit</span>
+                {{ props.tuningData?.global_capacity_summary?.required_operating_units ?? 0 }}
+                <span class="text-caption text-medium-emphasis">/ {{ props.tuningData?.global_capacity_summary?.total_fleet_units ?? 0 }} Unit</span>
               </h4>
               <span class="text-caption text-medium-emphasis">
-                Standby Unit: <strong>{{ props.tuningData?.global_capacity_summary?.standby_units ?? 291 }} Unit</strong>
+                Standby Unit: <strong>{{ props.tuningData?.global_capacity_summary?.standby_units ?? 0 }} Unit</strong>
               </span>
             </div>
           </VCol>
@@ -105,11 +118,11 @@ const getActivityColor = (activity: string) => {
             <div class="metric-item border rounded-lg p-3">
               <span class="text-caption text-medium-emphasis font-weight-medium">Tuned vs Actual Fuel</span>
               <h4 class="text-h5 font-weight-bold text-high-emphasis my-1">
-                {{ (props.tuningData?.global_fuel_tuning_summary?.actual_total_fuel_lday ?? 25200.0).toLocaleString('id-ID') }}
+                {{ (props.tuningData?.global_fuel_tuning_summary?.actual_total_fuel_lday ?? 0).toLocaleString('id-ID') }}
                 <span class="text-caption text-medium-emphasis">L/day</span>
               </h4>
               <span class="text-caption text-medium-emphasis">
-                Tuned Target: <strong class="text-primary">{{ (props.tuningData?.global_fuel_tuning_summary?.tuned_combined_fuel_lday ?? 24097.4).toLocaleString('id-ID') }} L</strong>
+                Tuned Target: <strong class="text-primary">{{ (props.tuningData?.global_fuel_tuning_summary?.tuned_combined_fuel_lday ?? 0).toLocaleString('id-ID') }} L</strong>
               </span>
             </div>
           </VCol>
@@ -119,11 +132,11 @@ const getActivityColor = (activity: string) => {
             <div class="metric-item border rounded-lg p-3">
               <span class="text-caption text-medium-emphasis font-weight-medium">Net Fuel Variance</span>
               <h4 class="text-h5 font-weight-bold text-warning my-1">
-                +{{ (props.tuningData?.global_fuel_tuning_summary?.net_fuel_variance_lday ?? 1102.6).toLocaleString('id-ID') }}
+                +{{ (props.tuningData?.global_fuel_tuning_summary?.net_fuel_variance_lday ?? 0).toLocaleString('id-ID') }}
                 <span class="text-caption text-medium-emphasis">Liter</span>
               </h4>
               <span class="text-caption font-weight-medium text-warning">
-                Selisih Variansi: +{{ props.tuningData?.global_fuel_tuning_summary?.overall_variance_pct ?? 4.57 }}%
+                Selisih Variansi: +{{ props.tuningData?.global_fuel_tuning_summary?.overall_variance_pct ?? 0 }}%
               </span>
             </div>
           </VCol>
@@ -133,7 +146,7 @@ const getActivityColor = (activity: string) => {
         <div class="border rounded-lg overflow-hidden">
           <VTable density="compact" class="text-no-wrap">
             <thead>
-              <tr class="bg-surface" style="background-color: rgba(229, 57, 53, 0.04) !important;">
+              <tr class="bg-surface" style="background-color: rgba(var(--v-theme-primary), 0.04) !important;">
                 <th class="text-left font-weight-bold text-caption">UNIT TYPE</th>
                 <th class="text-left font-weight-bold text-caption">AKTIVITAS</th>
                 <th class="text-center font-weight-bold text-caption">QTY</th>
@@ -174,12 +187,15 @@ const getActivityColor = (activity: string) => {
                 <td class="text-right font-weight-medium text-high-emphasis">
                   {{ item.actual_fuel_consumed_lday.toLocaleString('id-ID') }}
                 </td>
-                <td class="text-right font-weight-medium text-warning">
-                  +{{ item.variance_liters.toLocaleString('id-ID') }} ({{ item.variance_pct }}%)
+                <td
+                  class="text-right font-weight-medium text-tabular-nums"
+                  :class="item.variance_liters > 0 ? 'text-error' : 'text-success'"
+                >
+                  {{ item.variance_liters > 0 ? '+' : '' }}{{ item.variance_liters.toLocaleString('id-ID') }} ({{ item.variance_pct }}%)
                 </td>
                 <td class="text-center">
                   <VChip
-                    :color="item.tuning_status === 'EFFICIENT' ? 'success' : 'warning'"
+                    :color="item.tuning_status === 'EFFICIENT' ? 'success' : item.tuning_status === 'OVER_CONSUMPTION' ? 'error' : 'warning'"
                     size="x-small"
                     variant="tonal"
                     class="font-weight-semibold"

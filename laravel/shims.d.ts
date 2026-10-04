@@ -12,3 +12,5 @@ declare module 'vue-prism-component' {
   export default component
 }
 declare module 'vue-shepherd';
+declare module '@iconify/utils';
+

@@ -20,7 +20,8 @@
    - [4. Global Capacity Tuning (`/global-capacity`)](#4-global-capacity-tuning-global-capacity)
    - [5. Production & Equipment Catalog (`/production-capacity`)](#5-production--equipment-catalog-production-capacity)
 8. [Dokumentasi API Endpoints (API Reference)](#-dokumentasi-api-endpoints-api-reference)
-9. [Troubleshooting & FAQ](#-troubleshooting--faq)
+9. [Automasi GitHub Actions (Supabase Keep-Alive)](#-automasi-github-actions-supabase-keep-alive)
+10. [Troubleshooting & FAQ](#-troubleshooting--faq)
 
 ---
 
@@ -375,6 +376,20 @@ Seluruh endpoint AI microservice dapat diakses langsung pada port `8002` atau vi
   "haul_distance_m": 4200.0
 }
 ```
+
+---
+
+## 🤖 Automasi GitHub Actions (Supabase Keep-Alive)
+
+Repository ini dilengkapi dengan workflow GitHub Actions otomatis di [`.github/workflows/supabase-keepalive.yml`](.github/workflows/supabase-keepalive.yml) untuk mencegah database Supabase Cloud (*Free-tier*) masuk ke mode *idle/pause*:
+
+- **Jadwal Eksekusi:** Berjalan setiap **3 hari sekali pukul 03:00 UTC** (`0 3 */3 * *`).
+- **Mekanisme:** Mengirimkan request ringan ke endpoint PostgREST (`weather_daily_logs?select=id&limit=1`) untuk merekam aktivitas database secara berkala.
+- **Konfigurasi GitHub Secrets:**
+  Tambahkan secrets berikut di menu **Settings > Secrets and variables > Actions**:
+  - `SUPABASE_URL`
+  - `SUPABASE_KEY`
+- **Manual Run:** Mendukung trigger manual (`workflow_dispatch`) langsung dari tab Actions di GitHub.
 
 ---
 

@@ -58,9 +58,9 @@ const handleNavScroll = (evt: Event) => {
           to="/"
           class="app-logo app-title-wrapper"
         >
-          <div class="d-flex align-center px-8">
+          <div class="d-flex align-center px-4">
             <img
-              src="/favicon.ico"
+              src="/images/logo.png"
               alt="Kideco"
               class="kideco-nav-logo"
             />

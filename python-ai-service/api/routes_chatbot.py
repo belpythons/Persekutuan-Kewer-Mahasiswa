@@ -25,7 +25,7 @@ class ChatbotRequest(BaseModel):
 @router.post("/query", status_code=status.HTTP_200_OK)
 def query_mining_fuel_chatbot(request: ChatbotRequest, db: Session = Depends(get_db)):
     """
-    Mining Fuel AI Assistant Endpoint:
+    KIDECO Dispatch & Fuel Co-pilot Endpoint:
     Mendapatkan jawaban kontekstual berbasis data riil dari database (Forecast Logs, Capacity Allocations,
     Weather Daily Logs, Anomaly Spikes) + Gemini AI API Integration.
     """
@@ -60,7 +60,8 @@ def query_mining_fuel_chatbot(request: ChatbotRequest, db: Session = Depends(get
             "combined_fuel_lday": latest_capacity.combined_fuel_lday if latest_capacity else 24097.4,
             
             "anomalous_spikes_detected": len(recent_spikes),
-            "anomalous_units_sample": [s.unit_code for s in recent_spikes] if recent_spikes else ["EX2600-6", "PC2000-11R"]
+            # Empty when there genuinely are no spikes — not a fabricated pair of unit codes.
+            "anomalous_units_sample": [s.unit_code for s in recent_spikes]
         }
 
         # 2. Check if Gemini API Key is valid (not empty and not a URL)
@@ -97,7 +98,7 @@ def _call_gemini_api(api_key: str, model_name: str, query: str, context: dict, h
     try:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
 
-        system_prompt = f"""Anda adalah **Mining Fuel AI Assistant**, sistem AI pertambangan PT Kideco Jaya Agung.
+        system_prompt = f"""Anda adalah **KIDECO Dispatch & Fuel Co-pilot**, sistem AI pertambangan PT Kideco Jaya Agung.
 Anda memiliki akses data operasional pertambangan terkini dari database:
 - Fuel Ratio Terkini/Forecast: {context['forecast_fr']} L/BCM (Status: {context['forecast_status']}, Baseline: 1.0180 L/BCM)
 - Target Produksi BCM: {context['daily_prod_bcm']} BCM/hari | Jarak Angkut: {context['haul_distance_m']} meter
@@ -106,7 +107,7 @@ Anda memiliki akses data operasional pertambangan terkini dari database:
 - Anomali Spike BBM Terdeteksi: {context['anomalous_spikes_detected']} unit (Armada: {', '.join(context['anomalous_units_sample'])})
 
 Aturan Jawaban:
-1. Jika pengguna menyapa (seperti "halo", "tes", "siapa anda", "selamat pagi"), sapalah kembali secara ramah dan perkenalkan diri sebagai Mining Fuel AI Assistant Kideco.
+1. Jika pengguna menyapa (seperti "halo", "tes", "siapa anda", "selamat pagi"), sapalah kembali secara ramah dan perkenalkan diri sebagai KIDECO Dispatch & Fuel Co-pilot.
 2. Jika pengguna menanyakan data spesifik atau analisis, gunakan data database di atas untuk memberikan jawaban faktual dan presisi.
 3. Gunakan format markdown yang rapi.
 """
@@ -136,7 +137,7 @@ def _generate_smart_db_context_response(query: str, ctx: dict) -> str:
 
     # 1. Greetings & General Chat
     if any(g in q for g in ["halo", "hallo", "hello", "hi", "tes", "test", "selamat", "siapa", "pagi", "siang", "malam"]):
-        return f"""Halo! Saya **Mining Fuel AI Assistant** Kideco. 🤖
+        return f"""Halo! Saya **KIDECO Dispatch & Fuel Co-pilot**. 🤖
 
 Saya terhubung langsung ke database operasional FMS, XGBoost Regressor, dan PyTorch Anomaly Engine.
 
@@ -159,14 +160,19 @@ Ada yang bisa saya bantu analisis hari ini? Anda dapat menanyakan tentang **pred
 
     # 3. Anomaly & Unit queries
     elif any(k in q for k in ["anomali", "spike", "matikan", "unit", "excavator", "hauling", "hd785"]):
-        units_str = ", ".join(ctx['anomalous_units_sample'])
+        units_str = ", ".join(ctx['anomalous_units_sample']) if ctx['anomalous_units_sample'] else "tidak ada"
+        action_line = (
+            f"📋 **Rekomendasi:** Jadwalkan pemeriksaan sistem injeksi solar pada unit {units_str} — ajukan WO Maintenance secara manual bila diperlukan."
+            if ctx['anomalous_spikes_detected'] > 0
+            else "✅ Tidak ada spike anomali terbaru yang memerlukan tindak lanjut."
+        )
         return f"""Berdasarkan deteksi anomali **PyTorch Autoencoder Engine**:
 
 - 🚨 **Unit Terdeteksi Spike:** **{ctx['anomalous_spikes_detected']} Unit** ({units_str})
 - ⛽ **Alokasi BBM Kombinasi:** **{ctx['combined_fuel_lday']:,.1f} Liter/hari**
 - ⚙️ **Utilisasi Armada:** **{ctx['fleet_utilization_pct']}%** ({ctx['operating_units']} Unit Aktif dari 324 Populasi Fleet)
 
-📋 **Tindakan:** WO Maintenance otomatis telah diterbitkan untuk pemeriksaan sistem injeksi solar pada unit {units_str}."""
+{action_line}"""
 
     # 4. Default DB Summary
     else:
