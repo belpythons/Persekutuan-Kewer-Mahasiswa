@@ -170,7 +170,7 @@ Dokumen ini berisi panduan implementasi teknis mendetail per sprint untuk sub-pr
          <div class="fixed bottom-6 right-6 z-50">
              <!-- Chat Toggle Button -->
              <button @click="isOpen = !isOpen" class="bg-blue-600 text-white p-4 rounded-full shadow-lg hover:bg-blue-700 transition">
-                 💬 AI Assistant
+                 AI Assistant
              </button>
 
              <!-- Chat Popup Window -->
