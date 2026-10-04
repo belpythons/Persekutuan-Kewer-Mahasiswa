@@ -6,6 +6,7 @@ import PyTorchSpikeSummaryWidget from '@/views/dashboard/PyTorchSpikeSummaryWidg
 import TopAnomalousLeaderboard from '@/views/dashboard/TopAnomalousLeaderboard.vue'
 import ActivityFuelDonutChart from '@/views/dashboard/ActivityFuelDonutChart.vue'
 import OpenMeteoWeatherCard from '@/views/support/OpenMeteoWeatherCard.vue'
+import TimeSeriesForecastChart from '@/views/forecasting/TimeSeriesForecastChart.vue'
 
 const { fetchForecast, fetchAnomalyDetect, fetchCalculateCapacity } = useAiApi()
 
@@ -125,6 +126,11 @@ onMounted(loadDashboard)
           :total-fuel="capacityData?.total_combined_fuel_lday ?? null"
           class="h-100"
         />
+      </VCol>
+
+      <!-- FR TREND: 30-DAY HISTORY + 7-DAY FORECAST -->
+      <VCol cols="12">
+        <TimeSeriesForecastChart />
       </VCol>
 
       <!-- LEADERBOARD TABLE -->

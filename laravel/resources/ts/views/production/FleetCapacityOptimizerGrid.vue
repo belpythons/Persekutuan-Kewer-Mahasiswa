@@ -56,6 +56,11 @@ const allocations = computed<FleetAllocation[]>(() => {
 const computedTotalFuel = computed(() => {
   return props.totalFuel ?? allocations.value.reduce((sum, a) => sum + a.dailyFuelL, 0)
 })
+
+const targetProdBcm = computed(() => {
+  if (!props.activityBreakdown || props.activityBreakdown.length === 0) return null
+  return props.activityBreakdown.reduce((sum, a) => sum + a.prod_bcm_day_effective, 0)
+})
 </script>
 
 <template>
@@ -63,7 +68,8 @@ const computedTotalFuel = computed(() => {
     <VCardItem>
       <VCardTitle>Combined Fleet Capacity & Fuel Allocation</VCardTitle>
       <VCardSubtitle>
-        Target Produksi: 250.072 BCM/hari | Total Alokasi Solar:
+        <template v-if="targetProdBcm">Target Produksi: {{ targetProdBcm.toLocaleString('id-ID', { minimumFractionDigits: 1 }) }} BCM/hari | </template>
+        Total Alokasi Solar:
         <strong class="text-primary">{{ computedTotalFuel.toLocaleString('id-ID', { minimumFractionDigits: 1 }) }} L/hari</strong>
         <VChip
           v-if="activityBreakdown"
