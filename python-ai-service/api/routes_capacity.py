@@ -73,54 +73,82 @@ def global_capacity_tuning(request: GlobalCapacityTuningRequest, db: Session = D
             detail=f"Gagal kalkulasi global capacity tuning: {str(e)}"
         )
 
+PASER_LATITUDE = -1.82
+PASER_LONGITUDE = 115.89
+
 @router.post("/weather/sync-bmkg", status_code=status.HTTP_200_OK)
 def sync_bmkg_weather(db: Session = Depends(get_db)):
     """
-    Menarik data cuaca real-time & 7-hari ke depan langsung dari API BMKG / Live Open Data (Paser, Kaltim)
-    dan menyimpannya secara otomatis ke tabel weather_daily_logs.
+    Menarik prakiraan cuaca 7-hari ke depan dari Open-Meteo (sama seperti yang dipakai
+    OpenMeteoWeatherCard.vue di frontend) dan menyimpannya ke tabel weather_daily_logs,
+    sehingga forecasting_service punya data cuaca riil untuk hari-hari mendatang alih-alih
+    harus fallback ke konstanta default.
     """
-    try:
-        from models_db import WeatherDailyLog
-        import datetime, random
+    import requests
+    from models_db import WeatherDailyLog
+    import datetime
 
-        today = datetime.date.today()
-        sample_logs = []
-        for i in range(7):
-            d = today + datetime.timedelta(days=i)
-            rain = round(random.uniform(0.0, 15.0), 1) if i > 0 else 5.2
-            temp = round(random.uniform(28.0, 34.0), 1)
-            wind = round(random.uniform(8.0, 16.0), 1)
+    try:
+        resp = requests.get(
+            "https://api.open-meteo.com/v1/forecast",
+            params={
+                "latitude": PASER_LATITUDE,
+                "longitude": PASER_LONGITUDE,
+                "daily": "precipitation_sum,temperature_2m_max,wind_speed_10m_max",
+                "timezone": "Asia/Makassar",
+                "forecast_days": 7,
+            },
+            timeout=10,
+        )
+        resp.raise_for_status()
+        daily = resp.json()["daily"]
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Gagal mengambil prakiraan cuaca dari Open-Meteo: {str(e)}"
+        )
+
+    try:
+        synced_logs = []
+        for i, date_str in enumerate(daily["time"]):
+            d = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
+            rain = round(float(daily["precipitation_sum"][i] or 0.0), 1)
+            temp = round(float(daily["temperature_2m_max"][i]), 1)
+            wind = round(float(daily["wind_speed_10m_max"][i]), 1)
 
             w_log = db.query(WeatherDailyLog).filter(WeatherDailyLog.log_date == d).first()
-            if not w_log:
-                w_log = WeatherDailyLog(
+            if w_log:
+                w_log.curah_hujan_mm = rain
+                w_log.temp_max_c = temp
+                w_log.kecepatan_angin_kmh = wind
+            else:
+                db.add(WeatherDailyLog(
                     log_date=d,
                     curah_hujan_mm=rain,
                     temp_max_c=temp,
                     kecepatan_angin_kmh=wind
-                )
-                db.add(w_log)
+                ))
 
-            sample_logs.append({
-                "date": d.strftime("%Y-%m-%d"),
+            synced_logs.append({
+                "date": date_str,
                 "curah_hujan_mm": rain,
                 "temp_max_c": temp,
                 "kecepatan_angin_kmh": wind,
-                "source": "OPEN_METEO_PASER_LIVE"
+                "source": "OPEN_METEO_FORECAST_API"
             })
-        
+
         db.commit()
         return {
             "status": "success",
-            "source": "OPEN_METEO_PASER_LIVE",
+            "source": "OPEN_METEO_FORECAST_API",
             "location": "Paser / Batu Kajang, Kalimantan Timur",
-            "records_synced": len(sample_logs),
-            "data": sample_logs
+            "records_synced": len(synced_logs),
+            "data": synced_logs
         }
     except Exception as e:
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Gagal melakukan sync cuaca BMKG: {str(e)}"
+            detail=f"Gagal menyimpan hasil sync cuaca ke database: {str(e)}"
         )
 
