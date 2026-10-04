@@ -5,6 +5,8 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from services.capacity_engine import capacity_engine
+from models_db import EquipmentCatalog, SupportingUnitBaseline, DewateringUnitBaseline
+from services.forecasting import BASE_TOTAL_FR_BUDGET
 
 router = APIRouter(prefix="/api/v1", tags=["Capacity Determination Engine"])
 
@@ -21,6 +23,73 @@ class CapacityRequest(BaseModel):
     curah_hujan_mm: Optional[float] = Field(0.0, ge=0.0, le=200.0, example=12.5, description="Prakiraan curah hujan (mm)")
     equipment_list: Optional[List[EquipmentInput]] = Field(None, description="Daftar armada (Opsional, jika kosong mengambil dari DB)")
     nn_spike_count_by_unit: Optional[Dict[str, int]] = Field(None, example={"HD785-7MUD": 2}, description="Map bobot anomali spike unit hasil Autoencoder")
+
+@router.get("/ewh-budget", status_code=status.HTTP_200_OK)
+def get_ewh_budget(forecast_prod_bcm: float = 40000.0, db: Session = Depends(get_db)):
+    """
+    Menghitung Equipment Working Hours (EWH) & alokasi solar harian untuk fleet Support &
+    Dewatering, menggabungkan baseline PA/UA (supporting_units_baseline, dewatering_units_baseline)
+    dengan daftar model & kuantitas riil (equipment_catalogs). EWH = 24 jam x PA% x UA%, formula
+    standar mining availability — bukan tabel hardcoded di frontend.
+    """
+    def build_sector(activity_label: str, baseline_model):
+        baseline = db.query(baseline_model).first()
+        if not baseline:
+            return None
+
+        daily_ewh_hrs = round(24.0 * (baseline.pa / 100.0) * (baseline.ua / 100.0), 2)
+
+        equipment_rows = db.query(EquipmentCatalog).filter(
+            EquipmentCatalog.activity == activity_label,
+            EquipmentCatalog.qty > 0,
+        ).order_by(EquipmentCatalog.unit_name).all()
+
+        equipment = []
+        total_daily_fuel = 0.0
+        for eq in equipment_rows:
+            daily_fuel = eq.qty * eq.fc_lhr * daily_ewh_hrs
+            annual_ewh = round(daily_ewh_hrs * 365, 1)
+            fr_burden_l_bcm = round(daily_fuel / forecast_prod_bcm, 4) if forecast_prod_bcm > 0 else 0.0
+            total_daily_fuel += daily_fuel
+            equipment.append({
+                "equipment_model": eq.unit_name,
+                "active_qty": eq.qty,
+                "fc_rate_l_hr": round(eq.fc_lhr, 2),
+                "daily_ewh_hrs": daily_ewh_hrs,
+                "annual_budgeted_ewh": annual_ewh,
+                "daily_fuel_allocation_liters": round(daily_fuel, 1),
+                "annual_fuel_budget_liters": round(daily_fuel * 365, 1),
+                "fr_burden_l_bcm": fr_burden_l_bcm,
+                "fr_burden_pct": round((fr_burden_l_bcm / BASE_TOTAL_FR_BUDGET) * 100, 2) if BASE_TOTAL_FR_BUDGET else 0.0,
+            })
+
+        total_fr_burden_l_bcm = round(total_daily_fuel / forecast_prod_bcm, 4) if forecast_prod_bcm > 0 else 0.0
+
+        return {
+            "sector": activity_label,
+            "baseline_unit_code": baseline.unit_code,
+            "pa_pct": baseline.pa,
+            "ua_pct": baseline.ua,
+            "daily_ewh_hrs": daily_ewh_hrs,
+            "total_units": sum(e["active_qty"] for e in equipment),
+            "total_daily_fuel_liters": round(total_daily_fuel, 1),
+            "total_fr_burden_l_bcm": total_fr_burden_l_bcm,
+            "total_fr_burden_pct": round((total_fr_burden_l_bcm / BASE_TOTAL_FR_BUDGET) * 100, 2) if BASE_TOTAL_FR_BUDGET else 0.0,
+            "equipment": equipment,
+        }
+
+    sectors = [
+        s for s in [
+            build_sector("SUPPORT", SupportingUnitBaseline),
+            build_sector("DEWATERING", DewateringUnitBaseline),
+        ] if s is not None
+    ]
+
+    return {
+        "forecast_prod_bcm": forecast_prod_bcm,
+        "sectors": sectors,
+    }
+
 
 @router.post("/calculate-capacity", status_code=status.HTTP_200_OK)
 def calculate_combined_capacity_allocation(request: CapacityRequest, db: Session = Depends(get_db)):
