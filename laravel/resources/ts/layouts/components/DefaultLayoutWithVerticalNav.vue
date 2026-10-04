@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import NavItems from '@/layouts/components/NavItems.vue'
 import VerticalNavLayout from '@layouts/components/VerticalNavLayout.vue'
+import logo from '@images/logo.png'
 
 // Components
 import Footer from '@/layouts/components/Footer.vue'
@@ -64,10 +65,9 @@ import UserProfile from '@/layouts/components/UserProfile.vue'
       >
         <div class="d-flex align-center">
           <img
-            src="/favicon.ico"
+            :src="logo"
             alt="Kideco"
             class="kideco-nav-logo"
-            style="max-height: 38px; width: auto; object-fit: contain;"
           />
         </div>
       </RouterLink>
@@ -108,14 +108,14 @@ import UserProfile from '@/layouts/components/UserProfile.vue'
   display: flex;
   align-items: center;
   inline-size: 100%;
+  padding-block: 0.25rem;
 
   .kideco-nav-logo {
-    inline-size: auto;
-    max-inline-size: 260px;
-    block-size: 76px;
+    inline-size: 100%;
+    max-inline-size: 380px;
+    max-block-size: 160px;
     object-fit: contain;
-    transform: scale(1.75);
-    transform-origin: left center;
+    object-position: left center;
   }
 }
 </style>

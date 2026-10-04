@@ -1,7 +1,12 @@
 <script setup lang="ts">
+import { useRouter } from 'vue-router'
 import AuthProvider from '@/views/pages/authentication/AuthProvider.vue'
 import authV1BottomShape from '@images/svg/auth-v1-bottom-shape.svg?url'
 import authV1TopShape from '@images/svg/auth-v1-top-shape.svg?url'
+import logo from '@images/logo.png'
+
+const router = useRouter()
+const isSigningUp = ref(false)
 
 const form = ref({
   username: '',
@@ -11,6 +16,13 @@ const form = ref({
 })
 
 const isPasswordVisible = ref(false)
+
+const handleRegister = () => {
+  isSigningUp.value = true
+  setTimeout(() => {
+    router.push('/')
+  }, 450)
+}
 </script>
 
 <template>
@@ -39,11 +51,11 @@ const isPasswordVisible = ref(false)
             to="/"
             class="app-logo"
           >
-            <div class="d-flex align-center justify-center">
+            <div class="d-flex align-center justify-center py-2">
               <img
-                src="/favicon.ico"
+                :src="logo"
                 alt="Kideco"
-                style="max-inline-size: 200px; max-block-size: 50px; object-fit: contain;"
+                style="max-inline-size: 220px; max-block-size: 55px; object-fit: contain;"
               />
             </div>
           </RouterLink>
@@ -59,7 +71,7 @@ const isPasswordVisible = ref(false)
         </VCardText>
 
         <VCardText>
-          <VForm @submit.prevent="$router.push('/')">
+          <VForm @submit.prevent="handleRegister">
             <VRow>
               <!-- Username -->
               <VCol cols="12">
@@ -113,6 +125,7 @@ const isPasswordVisible = ref(false)
                 <VBtn
                   block
                   type="submit"
+                  :loading="isSigningUp"
                 >
                   Sign up
                 </VBtn>

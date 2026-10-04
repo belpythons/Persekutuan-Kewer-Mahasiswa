@@ -14,7 +14,7 @@
   <div id="app">
     <div id="loading-bg">
       <div class="loading-logo">
-        <img src="{{ asset('images/logo.png') }}" alt="KIDECO Logo" style="max-height: 80px; width: auto; object-fit: contain;" />
+        <img src="{{ asset('favicon.ico') }}" alt="KIDECO Logo" style="max-height: 110px; max-width: 300px; width: auto; object-fit: contain;" />
       </div>
       <div class="loading">
         <div class="effect-1 effects"></div>
