@@ -102,16 +102,35 @@ Setiap endpoint baru diuji manual via `TestClient`/`curl` terlebih dahulu untuk 
 
 ---
 
-## 5. Verifikasi Manual yang Direkomendasikan di Browser (belum dijalankan di sesi ini)
+## 5. Verifikasi Manual End-to-End di Browser (dijalankan, hasil nyata)
 
-Sesi ini tidak menjalankan dev server/browser untuk klik-per-klik. Sebelum deploy, disarankan verifikasi manual berikut:
+Dijalankan setelah permintaan eksplisit untuk debug sesuai dokumen ini. Setup: `python-ai-service` via `python main.py` (port 8002), Laravel via `php artisan serve --port=8010` (port 8000 & 5173 default sudah dipakai proyek lain di mesin ini), serta production build (`npx vite build`) di-serve langsung oleh Laravel (file `public/hot` basi dari sesi lain dihapus agar tidak mencoba connect ke Vite dev server yang salah). Konfigurasi disimpan di `.claude/launch.json` untuk sesi berikutnya.
 
-1. `npm run dev` di `laravel/`, jalankan `python-ai-service` secara lokal (`uvicorn main:app`).
-2. Buka `/dashboard`, `/production-capacity`, `/global-capacity`, `/forecasting-ai`, `/support-weather-mlops` — pastikan ke-4 state (loading/error/empty/live) tampil sesuai dengan mematikan/menyalakan `python-ai-service`.
-3. Ganti tema light ↔ dark via navbar switcher (dipulihkan di komit `8994e16`) — pastikan palet baru (Mining Blue/Slate) konsisten di kedua mode.
-4. Di `/support-weather-mlops`: ubah nilai di **Dynamic Threshold Config**, klik Simpan, lalu refresh `/dashboard` — pastikan widget forecast memakai threshold baru. Klik **Trigger Model Retraining** dan tunggu (~9 detik) hingga metrik di kartu MLOps berubah.
-5. Di `/forecasting-ai`: geser slider di **Scenario Simulator**, perhatikan chip "Kontributor Utama Prediksi" berubah sesuai variabel yang digeser.
-6. Trigger workflow `.github/workflows/supabase-keepalive.yml` secara manual (`workflow_dispatch`) di tab Actions GitHub setelah menambahkan secret `SUPABASE_URL`/`SUPABASE_KEY`, untuk memverifikasi kredensial sebelum mempercayakannya ke jadwal cron.
+| Langkah | Hasil |
+|---|---|
+| `/dashboard` — semua widget | **Live.** Weather card sync ke Open-Meteo asli, Fuel Ratio Status NORMAL dengan data real (1.0182 L/BCM), PyTorch Anomaly 5/5 unit, donut solar per aktivitas, TimeSeriesForecastChart dengan threshold zones, leaderboard 5 unit nyata. Tidak ada data dummy terlihat. |
+| `/production-capacity` | **Live.** Loading/Hauling Fleet card, FleetCapacityOptimizerGrid ("Target Produksi: 102.000,0 BCM/hari" — dihitung, bukan hardcoded), NonProductionFuelBurdenDonut 11.0%, HourlyFleetCapacityMatrix 19 baris data riil. |
+| `/global-capacity` | **Live.** "397 Fleet Units Tuned" dinamis dari response, tabel SPO Compliance 19 unit — semua "Compliant" (variance ~4.5-4.6%), tidak ada CriticalEquipmentAlertBanner (0 unit over-consumption → banner benar-benar tersembunyi, bukan ditampilkan kosong). |
+| `/forecasting-ai` | **Live.** Scenario Simulator menghasilkan prediksi real + **chip "Kontributor Utama Prediksi" menampilkan 3 feature contribution asli** (Rain Derating +0.1201, Haul Distance +0.0030, Production Target -0.0014) yang berubah mengikuti slider. ModelMetricsCard: R² 0.9988, MAE 0.00029 — metrik asli. Chatbot menyapa sebagai "KIDECO Dispatch & Fuel Co-pilot" dengan status "AI Engine Connected" real. |
+| `/support-weather-mlops` | **Live.** EWH card Supporting (14 unit) & Dewatering (96 unit) dengan angka dari `equipment_catalogs` riil, tabel EWH 6 baris real. |
+| **Dark mode** (navbar switcher) | **Berhasil.** Toggle light→dark→light mulus, palet Mining Blue/Slate konsisten di kedua mode, semua teks tetap kontras dan terbaca. |
+| **Threshold config live-edit** | **Berhasil.** Ubah Warning Delta 8%→15%, Simpan → chip "Konfigurasi berhasil disimpan" muncul, `GET /api/v1/threshold-config` via curl mengonfirmasi `warning_pct:15` tersimpan. Dikembalikan ke 8% setelah tes. |
+| **Chatbot — quick prompt anomali** | **Berhasil, fix terkonfirmasi.** Respons menampilkan 5 unit kode asli (HD785-7, HD785-SPIKE, HD785-7MUD, EX2600-6, EX2600-SPIKE) dari leaderboard — bukan 2 unit fiktif lama. Baris aksi: "Rekomendasi: Jadwalkan pemeriksaan ... ajukan WO Maintenance secara manual bila diperlukan" — tidak ada lagi klaim "WO otomatis telah diterbitkan". |
+| **Chatbot — XSS fix** | **Berhasil, fix terkonfirmasi.** Mengetik `<img src=x onerror=alert('xss')> <b>bold test</b>` ke chat input: tidak ada alert yang muncul, tag `<b>` tidak di-bold-kan (ter-escape sebagai teks literal), dikonfirmasi lewat `get_page_text` dan console log (tidak ada error/alert). |
+| **Trigger Model Retraining** | **Berhasil end-to-end.** Klik tombol → ~9 detik → chip "Status: Retraining selesai — model & metrik telah diperbarui." muncul, metrik di kartu berubah ke nilai baru hasil retrain riil (R² 0.9988→0.9984, Precision 85.1%→86.3%, Recall 97.6%→81.5% — variasi ini justru mengonfirmasi temuan `task_90c628da` soal missing random seed). Model artifact yang ter-regenerate di-revert via `git checkout` setelahnya. |
+
+### Temuan baru dari verifikasi manual ini (diperbaiki, commit `16dc47c`)
+
+1. **`Excess Fuel` di dashboard selalu `0`** — bukan dihitung, hardcoded `:excess-fuel-liters="0"` di `dashboard.vue`. Diperbaiki: `max(0, forecast_fr - budget_baseline) × daily_prod_bcm`, memakai data yang sudah ada di halaman.
+2. **Kolom "Jarak (m)" di `ActualVsForecastTable.vue` menampilkan float mentah** (`3842.0841720377575`) karena tidak ada template slot `#item.haul_distance_m`. Ditambahkan, sekarang tampil `3.842`.
+
+### Dicatat, bukan bug (data riil, bukan dummy)
+
+Pada `/support-weather-mlops`, **Dewatering Fleet FR Burden = +1.6978 L/BCM (166.78% dari Total FR)** — angka ini lebih besar dari total budget FR seluruh tambang. Ini **bukan kesalahan kode**: 85 unit "Water Pump" riil di `equipment_catalogs` × 40 L/hr × 17.3 jam/hari EWH memang menghasilkan konsumsi solar sebesar itu secara matematis. Kemungkinan ini mengindikasikan data seed `qty=85` untuk Water Pump tidak realistis — tapi itu soal kualitas data seed, bukan sesuatu yang kode ini boleh "perbaiki" secara diam-diam (itu justru akan melanggar mandat zero-dummy/anti-hallucination). Perlu ditinjau oleh pemilik data ground-truth.
+
+### Langkah yang masih memerlukan aksi manual user (di luar kemampuan sesi ini)
+
+Trigger workflow `.github/workflows/supabase-keepalive.yml` secara manual (`workflow_dispatch`) di tab Actions GitHub setelah menambahkan secret `SUPABASE_URL`/`SUPABASE_KEY` — memerlukan akses ke repository settings GitHub yang tidak tersedia dari sesi lokal ini.
 
 ---
 
