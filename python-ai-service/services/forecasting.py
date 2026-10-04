@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database import SessionLocal
 from models_db import DailyForecastLog, WeatherDailyLog
 from pipelines.feature_engineering import build_features, FEATURE_COLUMNS
+from services.threshold_config import get_threshold_config
 
 logger = logging.getLogger(__name__)
 
@@ -142,10 +143,16 @@ class ForecastingService:
         # Prediksi XGBoost
         forecast_fr = float(self.model.predict(X_scaled)[0])
         
-        # Hitung Dynamic Thresholds (Baseline +8% dan +18%)
-        warning_threshold = BASE_TOTAL_FR_BUDGET * 1.08  # 1.0994
-        critical_threshold = BASE_TOTAL_FR_BUDGET * 1.18 # 1.2012
-        
+        # Dynamic Thresholds — dibaca dari cfg_system_mlops (editable via /api/v1/threshold-config);
+        # fallback ke konstanta BASE_TOTAL_FR_BUDGET bila tidak ada db_session (mis. unit test murni).
+        if db_session is not None:
+            cfg = get_threshold_config(db_session)
+            warning_threshold = cfg["budget_baseline"] * (1 + cfg["warning_pct"] / 100.0)
+            critical_threshold = cfg["budget_baseline"] * (1 + cfg["critical_pct"] / 100.0)
+        else:
+            warning_threshold = BASE_TOTAL_FR_BUDGET * 1.08  # 1.0994
+            critical_threshold = BASE_TOTAL_FR_BUDGET * 1.18  # 1.2012
+
         status = "NORMAL"
         if forecast_fr >= critical_threshold:
             status = "CRITICAL"

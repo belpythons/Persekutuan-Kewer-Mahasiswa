@@ -141,3 +141,15 @@ class CapacityUnitAllocation(Base):
         Index("idx_cap_unit_date_unit", "log_date", "unit_name"),
         Index("idx_cap_unit_date_act", "log_date", "activity"),
     )
+
+class SystemMlopsConfig(Base):
+    """
+    Konfigurasi sistem generik key/value (threshold dinamis, parameter MLOps, dst.) — sesuai
+    desain cfg_system_mlops di SPRINT/sprint pages/Page_03_Support_Dewatering_dan_Weather_MLOps.md.
+    """
+    __tablename__ = "cfg_system_mlops"
+
+    id = Column(Integer, primary_key=True, index=True)
+    config_key = Column(String(100), nullable=False, unique=True, index=True)
+    config_value = Column(String(255), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
