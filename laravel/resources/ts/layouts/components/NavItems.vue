@@ -38,18 +38,4 @@ import VerticalNavLink from '@layouts/components/VerticalNavLink.vue'
       to: '/forecasting-ai',
     }"
   />
-
-  <!-- 👉 Pengaturan -->
-  <VerticalNavSectionTitle
-    :item="{
-      heading: 'Pengaturan',
-    }"
-  />
-  <VerticalNavLink
-    :item="{
-      title: 'Account Settings',
-      icon: 'bx-user',
-      to: '/account-settings',
-    }"
-  />
 </template>

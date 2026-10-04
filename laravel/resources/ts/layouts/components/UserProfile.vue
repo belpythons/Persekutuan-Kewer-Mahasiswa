@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import avatar1 from '@images/avatars/avatar-1.png'
+// No auth backend exists yet — this is a neutral operator icon, not a stand-in for a real
+// logged-in person. Don't reintroduce a fake name/photo here until real auth is wired up.
 </script>
 
 <template>
@@ -16,7 +17,7 @@ import avatar1 from '@images/avatars/avatar-1.png'
       color="primary"
       variant="tonal"
     >
-      <VImg :src="avatar1" />
+      <VIcon icon="bx-user" size="22" />
 
       <!-- SECTION Menu -->
       <VMenu
@@ -26,87 +27,24 @@ import avatar1 from '@images/avatars/avatar-1.png'
         offset="14px"
       >
         <VList>
-          <!-- 👉 User Avatar & Name -->
+          <!-- 👉 Operator (no auth backend — neutral label, not a real account) -->
           <VListItem>
             <template #prepend>
               <VListItemAction start>
-                <VBadge
-                  dot
-                  location="bottom right"
-                  offset-x="3"
-                  offset-y="3"
-                  color="success"
+                <VAvatar
+                  color="primary"
+                  variant="tonal"
                 >
-                  <VAvatar
-                    color="primary"
-                    variant="tonal"
-                  >
-                    <VImg :src="avatar1" />
-                  </VAvatar>
-                </VBadge>
+                  <VIcon icon="bx-user" size="22" />
+                </VAvatar>
               </VListItemAction>
             </template>
 
             <VListItemTitle class="font-weight-semibold">
-              John Doe
+              Operator
             </VListItemTitle>
-            <VListItemSubtitle>Admin</VListItemSubtitle>
+            <VListItemSubtitle>KIDECO Fuel Ratio System</VListItemSubtitle>
           </VListItem>
-          <VDivider class="my-2" />
-
-          <!-- 👉 Profile -->
-          <VListItem link>
-            <template #prepend>
-              <VIcon
-                class="me-2"
-                icon="bx-user"
-                size="22"
-              />
-            </template>
-
-            <VListItemTitle>Profile</VListItemTitle>
-          </VListItem>
-
-          <!-- 👉 Settings -->
-          <VListItem link>
-            <template #prepend>
-              <VIcon
-                class="me-2"
-                icon="bx-cog"
-                size="22"
-              />
-            </template>
-
-            <VListItemTitle>Settings</VListItemTitle>
-          </VListItem>
-
-          <!-- 👉 Pricing -->
-          <VListItem link>
-            <template #prepend>
-              <VIcon
-                class="me-2"
-                icon="bx-dollar"
-                size="22"
-              />
-            </template>
-
-            <VListItemTitle>Pricing</VListItemTitle>
-          </VListItem>
-
-          <!-- 👉 FAQ -->
-          <VListItem link>
-            <template #prepend>
-              <VIcon
-                class="me-2"
-                icon="bx-help-circle"
-                size="22"
-              />
-            </template>
-
-            <VListItemTitle>FAQ</VListItemTitle>
-          </VListItem>
-
-          <!-- Divider -->
           <VDivider class="my-2" />
 
           <!-- 👉 Logout -->

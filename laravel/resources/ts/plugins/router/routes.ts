@@ -20,10 +20,6 @@ export const routes = [
         path: 'forecasting-ai',
         component: () => import('@/pages/forecasting-ai.vue'),
       },
-      {
-        path: 'account-settings',
-        component: () => import('@/pages/account-settings.vue'),
-      },
     ],
   },
   {
