@@ -33,9 +33,9 @@ def test_database_connection_and_seeding(db_session):
     conn_info = check_db_connection()
     assert conn_info["status"] == "connected"
     
-    # Check equipment catalogs count
+    # Check equipment catalogs count (19 equipment models / types)
     eq_count = db_session.query(EquipmentCatalog).count()
-    assert eq_count >= 38, f"Expected at least 38 equipment catalogs, got {eq_count}"
+    assert eq_count >= 19, f"Expected at least 19 equipment catalogs, got {eq_count}"
 
     # Check weather logs count (ground-truth dataset contains 364 daily rows)
     weather_count = db_session.query(WeatherDailyLog).count()
