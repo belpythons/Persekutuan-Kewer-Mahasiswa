@@ -154,6 +154,9 @@ onMounted(loadHistory)
         <template #item.daily_prod_bcm="{ item }">
           {{ formatNum(item.daily_prod_bcm) }}
         </template>
+        <template #item.haul_distance_m="{ item }">
+          {{ formatNum(item.haul_distance_m) }}
+        </template>
         <template #item.actual_fuel_l="{ item }">
           {{ formatNum(item.actual_fuel_l) }}
         </template>

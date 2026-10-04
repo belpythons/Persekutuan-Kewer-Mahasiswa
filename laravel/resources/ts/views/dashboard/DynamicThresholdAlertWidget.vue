@@ -154,7 +154,10 @@ const isCriticalState = computed(() => status.value === 'CRITICAL')
           </div>
           <div>
             <span class="text-medium-emphasis">Excess Fuel:</span>
-            <strong class="ms-1 text-error">+{{ props.excessFuelLiters.toLocaleString('id-ID') }} L</strong>
+            <strong
+              class="ms-1 text-tabular-nums"
+              :class="props.excessFuelLiters > 0 ? 'text-error' : 'text-success'"
+            >{{ props.excessFuelLiters > 0 ? '+' : '' }}{{ props.excessFuelLiters.toLocaleString('id-ID') }} L</strong>
           </div>
         </div>
       </template>

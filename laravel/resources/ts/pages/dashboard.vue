@@ -26,6 +26,14 @@ const capacityData = ref<CapacityResponse | null>(null)
 // hardcoded constant duplicated across frontend files.
 const budgetBaseline = ref(1.018)
 
+// Excess fuel = how much more solar the forecast FR burns than the budget baseline, applied to
+// today's production target. 0 when the forecast is at or under budget — not a placeholder.
+const excessFuelLiters = computed(() => {
+  if (!forecastData.value) return 0
+  const excessFr = forecastData.value.forecast_fr - budgetBaseline.value
+  return excessFr > 0 ? Math.round(excessFr * forecastData.value.daily_prod_bcm) : 0
+})
+
 async function loadDashboard() {
   isLoading.value = true
   isError.value = false
@@ -100,7 +108,7 @@ onMounted(loadDashboard)
           :budget-baseline="budgetBaseline"
           :warning-threshold="forecastData?.warning_threshold ?? 0"
           :critical-threshold="forecastData?.critical_threshold ?? 0"
-          :excess-fuel-liters="0"
+          :excess-fuel-liters="excessFuelLiters"
           :is-loading="isLoading"
           :is-error="isError"
           class="h-100"
