@@ -38,4 +38,11 @@ import VerticalNavLink from '@layouts/components/VerticalNavLink.vue'
       to: '/forecasting-ai',
     }"
   />
+  <VerticalNavLink
+    :item="{
+      title: 'Support, Dewatering & MLOps',
+      icon: 'bx-wrench',
+      to: '/support-weather-mlops',
+    }"
+  />
 </template>

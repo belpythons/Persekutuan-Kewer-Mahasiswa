@@ -20,6 +20,10 @@ export const routes = [
         path: 'forecasting-ai',
         component: () => import('@/pages/forecasting-ai.vue'),
       },
+      {
+        path: 'support-weather-mlops',
+        component: () => import('@/pages/support-weather-mlops.vue'),
+      },
     ],
   },
   {

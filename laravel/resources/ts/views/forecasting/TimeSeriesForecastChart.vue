@@ -5,7 +5,7 @@ import { useAiApi } from '@/composables/useAiApi'
 import type { Forecast7DaysResponse, ForecastHistoryItem } from '@/composables/useAiApi'
 
 const vuetifyTheme = useTheme()
-const { fetchForecast7Days, fetchForecastHistory } = useAiApi()
+const { fetchForecast7Days, fetchForecastHistory, fetchThresholdConfig } = useAiApi()
 
 const isLoading = ref(true)
 const isError = ref(false)
@@ -50,10 +50,9 @@ const forecastFrSeries = computed(() => {
   return [...nulls, ...fcValues]
 })
 
-// ponytail: the forecast API doesn't return a budget baseline (it mirrors python-ai-service's
-// BASE_TOTAL_FR_BUDGET constant). Upgrade when the threshold-config endpoint (plan Phase D3)
-// ships; read it from there instead of this hardcoded constant.
-const budgetBaseline = computed(() => 1.018)
+// Real, editable config (cfg_system_mlops via /api/v1/threshold-config) — seeded with the same
+// 1.018 default forecasting.py used to hardcode, kept in sync by fetching it on mount.
+const budgetBaseline = ref(1.018)
 
 const warningThreshold = computed(() => {
   return forecast7DaysData.value?.daily_forecasts?.[0]?.warning_threshold ?? 1.0994
@@ -77,6 +76,8 @@ const loadChartData = async () => {
     historyLogs.value = histRes.status === 'fulfilled' ? histRes.value.historical_logs || [] : []
     forecast7DaysData.value = fcRes.status === 'fulfilled' ? fcRes.value : null
     isError.value = histRes.status === 'rejected' && fcRes.status === 'rejected'
+
+    fetchThresholdConfig().then(cfg => { budgetBaseline.value = cfg.budget_baseline }).catch(() => null)
   } catch (error) {
     console.error('Failed to load real AI chart data from database/API:', error)
     isError.value = true

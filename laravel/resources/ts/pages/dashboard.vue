@@ -8,7 +8,7 @@ import ActivityFuelDonutChart from '@/views/dashboard/ActivityFuelDonutChart.vue
 import OpenMeteoWeatherCard from '@/views/support/OpenMeteoWeatherCard.vue'
 import TimeSeriesForecastChart from '@/views/forecasting/TimeSeriesForecastChart.vue'
 
-const { fetchForecast, fetchAnomalyDetect, fetchCalculateCapacity } = useAiApi()
+const { fetchForecast, fetchAnomalyDetect, fetchCalculateCapacity, fetchThresholdConfig } = useAiApi()
 
 const isLoading = ref(true)
 const isError = ref(false)
@@ -22,6 +22,10 @@ const anomalyData = ref<AnomalyDetectResponse | null>(null)
 // Capacity data for donut chart
 const capacityData = ref<CapacityResponse | null>(null)
 
+// Budget baseline for the alert widget — real, editable config (cfg_system_mlops), not a
+// hardcoded constant duplicated across frontend files.
+const budgetBaseline = ref(1.018)
+
 async function loadDashboard() {
   isLoading.value = true
   isError.value = false
@@ -31,6 +35,8 @@ async function loadDashboard() {
     // 1. Fetch Forecast (Base)
     const forecastResult = await fetchForecast({ date: today })
     forecastData.value = forecastResult
+
+    fetchThresholdConfig().then(cfg => { budgetBaseline.value = cfg.budget_baseline }).catch(() => null)
 
     // 2. Fetch Capacity (Dependent on Forecast Production & Weather)
     const capacityResult = await fetchCalculateCapacity({
@@ -89,15 +95,9 @@ onMounted(loadDashboard)
 
       <!-- TOP METRIC 1: FORECAST ALERT -->
       <VCol cols="12" sm="6" lg="4">
-        <!--
-          ponytail: budget-baseline (1.0180) is still a hardcoded constant — the forecast API
-          doesn't return it (it mirrors python-ai-service's BASE_TOTAL_FR_BUDGET constant).
-          Upgrade when the threshold-config endpoint (plan Phase D3) ships; read it from there.
-          Harmless while isLoading/isError is true: the widget never renders these props then.
-        -->
         <DynamicThresholdAlertWidget
           :actual-fr="forecastData?.forecast_fr ?? 0"
-          :budget-baseline="1.0180"
+          :budget-baseline="budgetBaseline"
           :warning-threshold="forecastData?.warning_threshold ?? 0"
           :critical-threshold="forecastData?.critical_threshold ?? 0"
           :excess-fuel-liters="0"

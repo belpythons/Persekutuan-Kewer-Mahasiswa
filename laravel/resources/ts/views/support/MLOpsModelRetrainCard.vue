@@ -1,50 +1,48 @@
 <script setup lang="ts">
-import { useAiApi } from '@/composables/useAiApi'
-import type { ReadyResponse } from '@/composables/useAiApi'
+import { useAiApi, AiApiError } from '@/composables/useAiApi'
+import type { ReadyResponse, ModelMetricsResponse } from '@/composables/useAiApi'
 
-const { fetchAiReady } = useAiApi()
+const { fetchAiReady, fetchModelMetrics, retrainModels } = useAiApi()
 
 const isRetraining = ref(false)
-const progress = ref(0)
-const lastTrained = ref('04/07/2026 23:00 WITA')
-const statusMessage = ref('Models are in Sync & Healthy')
+const retrainError = ref('')
+const statusMessage = ref('')
 
 const aiReady = ref<ReadyResponse | null>(null)
+const modelMetrics = ref<ModelMetricsResponse | null>(null)
 const isLoadingStatus = ref(true)
 
-onMounted(async () => {
+async function loadStatus() {
+  isLoadingStatus.value = true
   try {
-    aiReady.value = await fetchAiReady()
-  } catch {
-    aiReady.value = null
+    const [readyResult, metricsResult] = await Promise.allSettled([fetchAiReady(), fetchModelMetrics()])
+    aiReady.value = readyResult.status === 'fulfilled' ? readyResult.value : null
+    modelMetrics.value = metricsResult.status === 'fulfilled' ? metricsResult.value : null
   } finally {
     isLoadingStatus.value = false
   }
-})
+}
 
-const triggerRetrain = () => {
+onMounted(loadStatus)
+
+async function triggerRetrain() {
   isRetraining.value = true
-  progress.value = 0
-  statusMessage.value = 'Initiating MLOps Retraining Pipeline...'
+  retrainError.value = ''
+  statusMessage.value = 'Melatih ulang XGBoost & PyTorch Autoencoder dari data terkini...'
+  try {
+    const result = await retrainModels()
+    if (result.errors.length > 0)
+      statusMessage.value = `Retrain selesai dengan peringatan: ${result.errors.join('; ')}`
+    else
+      statusMessage.value = 'Retraining selesai — model & metrik telah diperbarui.'
 
-  const interval = setInterval(() => {
-    progress.value += 20
-    if (progress.value === 40) {
-      statusMessage.value = 'Training PyTorch Autoencoder on Normal Fleet Data...'
-    } else if (progress.value === 80) {
-      statusMessage.value = 'Fitting XGBoost Regressor with TimeSeriesSplit...'
-    } else if (progress.value >= 100) {
-      clearInterval(interval)
-      isRetraining.value = false
-      lastTrained.value = 'Just Now'
-      statusMessage.value = 'Retraining Completed — R²: 0.9904, P93.5: 0.0410'
-      // Refresh status
-      if (aiReady.value && aiReady.value.warmup_details) {
-        aiReady.value.warmup_details.xgboost_warmed_up = true
-        aiReady.value.warmup_details.pytorch_autoencoder_warmed_up = true
-      }
-    }
-  }, 600)
+    await loadStatus()
+  } catch (e: unknown) {
+    retrainError.value = e instanceof AiApiError ? e.message : 'Gagal menjalankan retraining'
+    statusMessage.value = ''
+  } finally {
+    isRetraining.value = false
+  }
 }
 
 const xgboostStatus = computed(() => {
@@ -58,6 +56,9 @@ const pytorchStatus = computed(() => {
   if (!aiReady.value || aiReady.value.error) return 'Offline'
   return aiReady.value.warmup_details.pytorch_autoencoder_warmed_up ? 'Trained' : 'Not Loaded'
 })
+
+const xgbMetrics = computed(() => modelMetrics.value?.xgboost?.metrics ?? null)
+const aeEvaluation = computed(() => modelMetrics.value?.autoencoder?.evaluation ?? null)
 </script>
 
 <template>
@@ -79,7 +80,7 @@ const pytorchStatus = computed(() => {
       <VCardTitle class="text-body-1 font-weight-medium">
         MLOps AI Model Control Panel
       </VCardTitle>
-      <VCardSubtitle>Retraining Pipeline & Status Evaluasi</VCardSubtitle>
+      <VCardSubtitle>Retraining Pipeline & Status Evaluasi Riil</VCardSubtitle>
       <template #append>
         <VChip
           v-if="!isLoadingStatus && aiReady && !aiReady.error"
@@ -87,11 +88,7 @@ const pytorchStatus = computed(() => {
           size="small"
           variant="tonal"
         >
-          <VIcon
-            icon="bx-check-circle"
-            start
-            size="14"
-          />
+          <VIcon icon="bx-check-circle" start size="14" />
           Live AI
         </VChip>
       </template>
@@ -99,14 +96,8 @@ const pytorchStatus = computed(() => {
 
     <VCardText>
       <VRow class="mb-2">
-        <VCol
-          cols="12"
-          sm="6"
-        >
-          <VCard
-            variant="outlined"
-            class="pa-3"
-          >
+        <VCol cols="12" sm="6">
+          <VCard variant="outlined" class="pa-3">
             <div class="d-flex align-center justify-space-between mb-1">
               <span class="font-weight-bold">XGBoost Regressor</span>
               <VChip
@@ -120,21 +111,15 @@ const pytorchStatus = computed(() => {
             <div class="text-caption text-medium-emphasis">
               Formula: BCM, Fuel & FR Forecasting
             </div>
-            <div class="d-flex justify-space-between mt-2 text-caption">
-              <span>R² Score: <strong>0.9901</strong></span>
-              <span>MAE: <strong>0.0045 L/BCM</strong></span>
+            <div class="d-flex justify-space-between mt-2 text-caption text-tabular-nums">
+              <span>R² Score: <strong>{{ xgbMetrics?.final_full_r2 !== undefined ? xgbMetrics.final_full_r2.toFixed(4) : 'N/A' }}</strong></span>
+              <span>MAE: <strong>{{ xgbMetrics?.final_full_mae !== undefined ? `${xgbMetrics.final_full_mae.toFixed(5)} L/BCM` : 'N/A' }}</strong></span>
             </div>
           </VCard>
         </VCol>
 
-        <VCol
-          cols="12"
-          sm="6"
-        >
-          <VCard
-            variant="outlined"
-            class="pa-3"
-          >
+        <VCol cols="12" sm="6">
+          <VCard variant="outlined" class="pa-3">
             <div class="d-flex align-center justify-space-between mb-1">
               <span class="font-weight-bold">PyTorch Autoencoder</span>
               <VChip
@@ -146,24 +131,26 @@ const pytorchStatus = computed(() => {
               </VChip>
             </div>
             <div class="text-caption text-medium-emphasis">
-              Normal Data (Is_Known_Anomaly == 0)
+              Normal Data (NN_Anomaly_Spike == 0)
             </div>
-            <div class="d-flex justify-space-between mt-2 text-caption">
-              <span>Threshold: <strong>P93.5 (0.0412)</strong></span>
-              <span>Latent Dim: <strong>8</strong></span>
+            <div class="d-flex justify-space-between mt-2 text-caption text-tabular-nums">
+              <span>Precision: <strong>{{ aeEvaluation?.precision !== undefined ? `${(aeEvaluation.precision * 100).toFixed(1)}%` : 'N/A' }}</strong></span>
+              <span>Recall: <strong>{{ aeEvaluation?.recall !== undefined ? `${(aeEvaluation.recall * 100).toFixed(1)}%` : 'N/A' }}</strong></span>
             </div>
           </VCard>
         </VCol>
       </VRow>
 
-      <div class="d-flex align-center justify-space-between my-3 text-caption text-medium-emphasis">
-        <span>Last Retrained: <strong>{{ lastTrained }}</strong></span>
+      <VAlert v-if="retrainError" type="error" variant="tonal" density="compact" class="my-3">
+        {{ retrainError }}
+      </VAlert>
+      <div v-else-if="statusMessage" class="d-flex align-center my-3 text-caption text-medium-emphasis">
         <span>Status: <strong class="text-info">{{ statusMessage }}</strong></span>
       </div>
 
       <VProgressLinear
         v-if="isRetraining"
-        v-model="progress"
+        indeterminate
         color="primary"
         height="6"
         rounded
