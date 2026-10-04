@@ -27,6 +27,7 @@ export interface ForecastResponse {
   daily_prod_bcm: number
   haul_distance_m: number
   features_input?: Record<string, number>
+  feature_contributions?: Record<string, number>
   fallback?: boolean
   error?: string
 }

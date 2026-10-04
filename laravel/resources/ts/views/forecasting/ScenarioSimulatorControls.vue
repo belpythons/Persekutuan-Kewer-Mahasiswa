@@ -27,6 +27,35 @@ const status = computed(() => {
   return { label: 'NORMAL', color: 'success', icon: 'bx-check-circle' }
 })
 
+// Human-readable labels for the model's 13 input features, for the transparency panel below.
+const FEATURE_LABELS: Record<string, string> = {
+  Curah_Hujan_mm: 'Rain Derating',
+  Temp_Max_C: 'Max Temperature',
+  Kecepatan_Angin_kmh: 'Wind Speed',
+  Haul_Distance_m: 'Haul Distance',
+  Daily_Prod_BCM: 'Production Target',
+  DayOfWeek: 'Day of Week',
+  Month: 'Month',
+  IsWeekend: 'Weekend',
+  Rain_Lag1: 'Rain (Yesterday)',
+  Rain_Lag2: 'Rain (2 Days Ago)',
+  FR_Lag1: 'FR (Yesterday)',
+  FR_Lag2: 'FR (2 Days Ago)',
+  RollingAvg_FR_7d: 'FR 7-Day Average',
+}
+
+// Real XGBoost SHAP-style contributions (pred_contribs) from the backend — not a guess. Top 3
+// by absolute magnitude, excluding the model's base_value (bias term, not a feature).
+const topContributors = computed(() => {
+  const contribs = aiResult.value?.feature_contributions
+  if (!contribs) return []
+  return Object.entries(contribs)
+    .filter(([key]) => key !== 'base_value')
+    .sort(([, a], [, b]) => Math.abs(b) - Math.abs(a))
+    .slice(0, 3)
+    .map(([key, value]) => ({ label: FEATURE_LABELS[key] || key, value }))
+})
+
 let timer: any = null
 const runForecast = async () => {
   isLoading.value = true
@@ -329,6 +358,26 @@ onMounted(() => {
             </VChip>
           </VCol>
         </VRow>
+
+        <!-- XGBoost Feature Contributions: real SHAP-style values from the model, not a guess -->
+        <template v-if="topContributors.length > 0">
+          <VDivider class="my-3" />
+          <div class="text-caption text-medium-emphasis mb-2 font-weight-medium">
+            Kontributor Utama Prediksi (XGBoost Feature Contribution)
+          </div>
+          <div class="d-flex flex-wrap gap-2">
+            <VChip
+              v-for="item in topContributors"
+              :key="item.label"
+              size="small"
+              variant="tonal"
+              :color="item.value >= 0 ? 'error' : 'success'"
+            >
+              <VIcon :icon="item.value >= 0 ? 'bx-up-arrow-alt' : 'bx-down-arrow-alt'" start size="14" />
+              {{ item.label }}: {{ item.value >= 0 ? '+' : '' }}{{ item.value.toFixed(4) }}
+            </VChip>
+          </div>
+        </template>
       </VSheet>
 
       <VSheet

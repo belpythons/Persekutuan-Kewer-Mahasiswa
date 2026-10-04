@@ -38,6 +38,7 @@ class ForecastResponse(BaseModel):
     daily_prod_bcm: float
     haul_distance_m: float
     features_input: Dict[str, Any]
+    feature_contributions: Optional[Dict[str, float]] = None
 
 @router.get("/weather-by-date/{date_str}", status_code=status.HTTP_200_OK)
 def get_weather_by_date(date_str: str, db: Session = Depends(get_db)):

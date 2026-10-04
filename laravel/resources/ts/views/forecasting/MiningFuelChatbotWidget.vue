@@ -9,20 +9,24 @@ interface Message {
   source?: string
 }
 
-const { fetchChatbotQuery } = useAiApi()
+const { fetchChatbotQuery, fetchAiReady } = useAiApi()
 
 const quickPrompts = [
-  'Mengapa prediksi FR besok naik ke 1.285 L/BCM?',
+  'Kenapa prediksi FR besok naik dibanding hari ini?',
   'Berapa total BBM kombinasi armada hari ini?',
   'Tampilkan unit excavator anomali spike hari ini',
 ]
+
+function timestamp() {
+  return new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WITA'
+}
 
 const messages = ref<Message[]>([
   {
     id: 1,
     sender: 'ai',
-    text: 'Halo! Saya **Mining Fuel AI Assistant**. Saya tersambung ke Database FMS, XGBoost Regressor, PyTorch Anomaly Engine, dan Gemini AI. Ada yang bisa saya bantu analisa hari ini?',
-    timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WITA',
+    text: 'Halo! Saya **KIDECO Dispatch & Fuel Co-pilot**. Tanyakan prediksi Fuel Ratio, alokasi solar armada, atau unit yang terdeteksi anomali konsumsi BBM hari ini.',
+    timestamp: timestamp(),
     source: 'KIDECO AI ENGINE',
   },
 ])
@@ -30,17 +34,31 @@ const messages = ref<Message[]>([
 const inputQuery = ref('')
 const isTyping = ref(false)
 
+// Real connection status instead of a status line that was always on regardless of whether
+// Gemini/the AI service was actually reachable.
+const isConnected = ref(false)
+const isCheckingStatus = ref(true)
+
+onMounted(async () => {
+  try {
+    const ready = await fetchAiReady()
+    isConnected.value = ready.status === 'ready'
+  } catch {
+    isConnected.value = false
+  } finally {
+    isCheckingStatus.value = false
+  }
+})
+
 const handleSend = async (queryText?: string) => {
   const query = queryText || inputQuery.value.trim()
   if (!query || isTyping.value) return
-
-  const userTimestamp = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WITA'
 
   messages.value.push({
     id: Date.now(),
     sender: 'user',
     text: query,
-    timestamp: userTimestamp,
+    timestamp: timestamp(),
   })
 
   inputQuery.value = ''
@@ -48,13 +66,11 @@ const handleSend = async (queryText?: string) => {
 
   try {
     const res = await fetchChatbotQuery(query)
-    const aiTimestamp = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WITA'
-
     messages.value.push({
       id: Date.now() + 1,
       sender: 'ai',
       text: res.response || 'Tidak ada respon dari server AI.',
-      timestamp: aiTimestamp,
+      timestamp: timestamp(),
       source: res.source || 'DATABASE & GEMINI AI',
     })
   } catch (error) {
@@ -63,7 +79,7 @@ const handleSend = async (queryText?: string) => {
       id: Date.now() + 1,
       sender: 'ai',
       text: 'Gagal terhubung ke AI Chatbot Service. Silakan periksa koneksi backend.',
-      timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WITA',
+      timestamp: timestamp(),
       source: 'ERROR',
     })
   } finally {
@@ -71,8 +87,16 @@ const handleSend = async (queryText?: string) => {
   }
 }
 
+const escapeHtml = (text: string) => {
+  const div = document.createElement('div')
+  div.textContent = text
+  return div.innerHTML
+}
+
+// Escape first so raw HTML/script in a user message or an echoed query can never execute,
+// then apply the only two markdown constructs this chat actually produces (bold, line breaks).
 const renderMarkdown = (text: string) => {
-  return text
+  return escapeHtml(text)
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\n/g, '<br>')
 }
@@ -96,11 +120,15 @@ const renderMarkdown = (text: string) => {
         </VAvatar>
       </template>
       <VCardTitle class="text-body-1 font-weight-bold">
-        Mining Fuel AI Assistant
+        KIDECO Dispatch & Fuel Co-pilot
       </VCardTitle>
       <VCardSubtitle class="d-flex align-center gap-1 text-caption">
-        <span class="online-indicator" />
-        <span>Gemini AI & Real DB Context Connected</span>
+        <span v-if="!isCheckingStatus" class="online-indicator" :class="{ 'online-indicator--offline': !isConnected }" />
+        <span>
+          <template v-if="isCheckingStatus">Memeriksa koneksi AI Engine...</template>
+          <template v-else-if="isConnected">AI Engine Connected</template>
+          <template v-else>AI Engine Offline — respons fallback</template>
+        </span>
       </VCardSubtitle>
     </VCardItem>
 
@@ -134,7 +162,7 @@ const renderMarkdown = (text: string) => {
           width="2"
           color="primary"
         />
-        <span>AI sedang menganalisis data database & model Gemini...</span>
+        <span>AI sedang menganalisis data database...</span>
       </div>
     </VCardText>
 
@@ -181,9 +209,13 @@ const renderMarkdown = (text: string) => {
 <style lang="scss" scoped>
 .online-indicator {
   display: inline-block;
-  background: #34A853;
+  background: rgb(var(--v-theme-success));
   block-size: 8px;
   border-radius: 50%;
   inline-size: 8px;
+}
+
+.online-indicator--offline {
+  background: rgb(var(--v-theme-error));
 }
 </style>
