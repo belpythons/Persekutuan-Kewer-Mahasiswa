@@ -241,6 +241,36 @@ export interface ReadyResponse {
   error?: string
 }
 
+export interface ModelMetricsResponse {
+  xgboost: {
+    model_name?: string
+    version?: string
+    feature_count?: number
+    cv_strategy?: string
+    metrics: {
+      avg_cv_r2?: number
+      avg_cv_mae?: number
+      final_full_r2?: number
+      final_full_mae?: number
+      final_full_rmse?: number
+    }
+  }
+  autoencoder: {
+    model_name?: string
+    version?: string
+    global_threshold?: number
+    evaluation: {
+      precision?: number
+      recall?: number
+      true_positive?: number
+      false_positive?: number
+      false_negative?: number
+    }
+  } | null
+  fallback?: boolean
+  error?: string
+}
+
 export interface HealthResponse {
   status: string
   environment?: string
@@ -327,6 +357,13 @@ export function useAiApi() {
   }
 
   /**
+   * GET /api/v1/model-metrics — Metrik evaluasi model riil (R², MAE) dari training terakhir
+   */
+  async function fetchModelMetrics(): Promise<ModelMetricsResponse> {
+    return apiRequest<ModelMetricsResponse>('GET', '/api/v1/model-metrics')
+  }
+
+  /**
    * POST /api/v1/anomaly-detect — Deteksi spike BBM (PyTorch Autoencoder)
    */
   async function fetchAnomalyDetect(records: AnomalyRecord[]): Promise<AnomalyDetectResponse> {
@@ -379,6 +416,7 @@ export function useAiApi() {
     fetchForecast,
     fetchForecast7Days,
     fetchForecastHistory,
+    fetchModelMetrics,
     fetchAnomalyDetect,
     fetchCalculateCapacity,
     fetchGlobalCapacityTuning,

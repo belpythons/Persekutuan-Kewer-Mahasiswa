@@ -13,11 +13,13 @@ const selectedShift = ref('Shift 1 (Day)')
 const shifts = ['Shift 1 (Day)', 'Shift 2 (Night)']
 
 const isLoading = ref(true)
+const isError = ref(false)
 const capacityData = ref<CapacityResponse | null>(null)
 const tuningData = ref<GlobalCapacityTuningResponse | null>(null)
 
 const syncGlobalCapacity = async () => {
   isLoading.value = true
+  isError.value = false
   try {
     const today = new Date().toISOString().slice(0, 10)
     const forecast = await fetchForecast({ date: today }).catch(() => null)
@@ -39,6 +41,7 @@ const syncGlobalCapacity = async () => {
   } catch (error) {
     console.error('Fetch Global Capacity Tuning failed:', error)
     tuningData.value = null
+    isError.value = true
   } finally {
     isLoading.value = false
   }
@@ -94,6 +97,8 @@ onMounted(() => {
         <GlobalCapacityTuningCard
           :tuning-data="tuningData"
           :is-loading="isLoading"
+          :is-error="isError"
+          @retry="syncGlobalCapacity"
         />
       </VCol>
 

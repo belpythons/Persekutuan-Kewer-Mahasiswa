@@ -99,4 +99,22 @@ class ForecastController extends Controller
             ], 503);
         }
     }
+
+    /**
+     * GET /api/v1/model-metrics
+     * Proxy ke AI service model evaluation metrics endpoint (R², MAE riil dari training)
+     */
+    public function modelMetrics(): JsonResponse
+    {
+        try {
+            $result = $this->aiClient->getModelMetrics();
+            return response()->json($result);
+        } catch (Exception $e) {
+            return response()->json([
+                'error' => 'AI Service model metrics tidak tersedia',
+                'message' => $e->getMessage(),
+                'fallback' => true,
+            ], 503);
+        }
+    }
 }

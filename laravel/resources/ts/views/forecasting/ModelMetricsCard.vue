@@ -1,71 +1,85 @@
 <script setup lang="ts">
 import { useAiApi } from '@/composables/useAiApi'
-import type { ReadyResponse } from '@/composables/useAiApi'
+import type { ReadyResponse, ModelMetricsResponse } from '@/composables/useAiApi'
 
-const { fetchAiReady } = useAiApi()
+const { fetchAiReady, fetchModelMetrics } = useAiApi()
 
 const isLoading = ref(true)
 const aiReady = ref<ReadyResponse | null>(null)
-
-// Default metrics (fallback when AI service unavailable)
-const defaultMetrics = [
-  { label: 'XGBoost R² Score', value: '0.9901', change: '+0.002 vs baseline', color: 'success', icon: 'bx-line-chart' },
-  { label: 'MAE Error Rate', value: '0.0045 L/BCM', change: '-12% residual error', color: 'primary', icon: 'bx-crosshair' },
-  { label: 'PyTorch P93.5 Threshold', value: '0.0412', change: '8 Latent Dimensions', color: 'warning', icon: 'bx-shield-quarter' },
-  { label: 'Model Pipeline', value: 'v3.3 / v2.11', change: 'Production Ready', color: 'info', icon: 'bx-check-double' },
-]
+const modelMetrics = ref<ModelMetricsResponse | null>(null)
+const hasError = ref(false)
 
 const metrics = computed(() => {
-  if (!aiReady.value || aiReady.value.error) return defaultMetrics
+  const xgb = modelMetrics.value?.xgboost?.metrics
+  const ae = modelMetrics.value?.autoencoder
 
-  const w = aiReady.value.warmup_details
-  return [
-    {
-      label: 'XGBoost Regressor',
-      value: w.xgboost_warmed_up ? 'Ready' : 'Not Loaded',
-      change: w.xgboost_warmup_ms ? `Warmup: ${w.xgboost_warmup_ms.toFixed(1)}ms` : 'Pending',
-      color: w.xgboost_warmed_up ? 'success' : 'error',
+  const items = []
+
+  if (xgb) {
+    items.push({
+      label: 'XGBoost R² Score',
+      value: xgb.final_full_r2 !== undefined ? xgb.final_full_r2.toFixed(4) : 'N/A',
+      change: xgb.avg_cv_r2 !== undefined ? `CV R²: ${xgb.avg_cv_r2.toFixed(4)}` : '',
+      color: 'success',
       icon: 'bx-line-chart',
-    },
-    {
-      label: 'PyTorch Autoencoder',
-      value: w.pytorch_autoencoder_warmed_up ? 'Ready' : 'Not Loaded',
-      change: w.pytorch_warmup_ms ? `Warmup: ${w.pytorch_warmup_ms.toFixed(1)}ms` : 'Pending',
-      color: w.pytorch_autoencoder_warmed_up ? 'success' : 'error',
+    })
+    items.push({
+      label: 'XGBoost MAE',
+      value: xgb.final_full_mae !== undefined ? `${xgb.final_full_mae.toFixed(5)} L/BCM` : 'N/A',
+      change: xgb.avg_cv_mae !== undefined ? `CV MAE: ${xgb.avg_cv_mae.toFixed(5)}` : '',
+      color: 'primary',
+      icon: 'bx-crosshair',
+    })
+  }
+
+  if (ae) {
+    items.push({
+      label: 'Autoencoder Precision',
+      value: ae.evaluation.precision !== undefined ? `${(ae.evaluation.precision * 100).toFixed(1)}%` : 'N/A',
+      change: `Recall: ${ae.evaluation.recall !== undefined ? (ae.evaluation.recall * 100).toFixed(1) : 'N/A'}%`,
+      color: 'warning',
       icon: 'bx-shield-quarter',
-    },
-    {
-      label: 'Total Warmup',
-      value: w.warmup_duration_ms ? `${w.warmup_duration_ms.toFixed(1)}ms` : 'N/A',
-      change: `DB: ${w.database_status}`,
-      color: aiReady.value.status === 'ready' ? 'primary' : 'warning',
-      icon: 'bx-timer',
-    },
-    {
-      label: 'Service Status',
-      value: aiReady.value.status === 'ready' ? 'Online' : 'Offline',
-      change: aiReady.value.status === 'ready' ? 'Production Ready' : 'Service Unavailable',
-      color: aiReady.value.status === 'ready' ? 'info' : 'error',
-      icon: aiReady.value.status === 'ready' ? 'bx-check-double' : 'bx-x-circle',
-    },
-  ]
+    })
+  }
+
+  items.push({
+    label: 'Service Status',
+    value: aiReady.value?.status === 'ready' ? 'Online' : 'Offline',
+    change: aiReady.value?.status === 'ready' ? 'Production Ready' : 'AI Service Unavailable',
+    color: aiReady.value?.status === 'ready' ? 'info' : 'error',
+    icon: aiReady.value?.status === 'ready' ? 'bx-check-double' : 'bx-x-circle',
+  })
+
+  return items
 })
 
 const serviceStatus = computed(() => {
   if (isLoading.value) return 'loading'
-  if (!aiReady.value || aiReady.value.error) return 'offline'
-  return aiReady.value.status === 'ready' ? 'ready' : 'not_ready'
+  if (hasError.value) return 'offline'
+  return aiReady.value?.status === 'ready' ? 'ready' : 'not_ready'
 })
 
-onMounted(async () => {
+async function load() {
+  isLoading.value = true
+  hasError.value = false
   try {
-    aiReady.value = await fetchAiReady()
+    const [readyResult, metricsResult] = await Promise.allSettled([
+      fetchAiReady(),
+      fetchModelMetrics(),
+    ])
+    aiReady.value = readyResult.status === 'fulfilled' ? readyResult.value : null
+    modelMetrics.value = metricsResult.status === 'fulfilled' ? metricsResult.value : null
+    // Metrics come from a file written at training time — their absence doesn't mean the
+    // service is down, only that no model has been trained yet. Treat it as empty, not error.
+    hasError.value = readyResult.status === 'rejected'
   } catch {
-    aiReady.value = null
+    hasError.value = true
   } finally {
     isLoading.value = false
   }
-})
+}
+
+onMounted(load)
 </script>
 
 <template>
@@ -96,19 +110,31 @@ onMounted(async () => {
       </VCardTitle>
       <VCardSubtitle>
         <template v-if="serviceStatus === 'ready'">
-          AI Engine Online — XGBoost & PyTorch Ready
+          AI Engine Online — Metrik evaluasi dari training terakhir
         </template>
         <template v-else-if="isLoading">
           Checking AI service readiness...
         </template>
         <template v-else>
-          AI Engine Offline — Menampilkan metrik default
+          AI Engine Offline
         </template>
       </VCardSubtitle>
+      <template v-if="!isLoading && hasError" #append>
+        <VBtn size="small" variant="tonal" color="primary" @click="load">
+          Coba Lagi
+        </VBtn>
+      </template>
     </VCardItem>
 
     <VCardText class="pa-4">
-      <VRow class="gy-4 gx-4">
+      <div v-if="isLoading" class="d-flex justify-center my-6">
+        <VProgressCircular indeterminate color="primary" />
+      </div>
+      <div v-else-if="hasError" class="d-flex flex-column align-center justify-center text-center py-6">
+        <VIcon icon="bx-error-circle" size="40" class="text-error mb-3" />
+        <p class="text-body-2 text-medium-emphasis">Gagal memuat status & metrik AI engine.</p>
+      </div>
+      <VRow v-else class="gy-4 gx-4">
         <VCol
           v-for="item in metrics"
           :key="item.label"
@@ -134,11 +160,11 @@ onMounted(async () => {
             <div class="text-caption text-medium-emphasis mb-1">
               {{ item.label }}
             </div>
-            <h6 class="text-h6 font-weight-bold">
+            <h6 class="text-h6 font-weight-bold text-tabular-nums">
               {{ item.value }}
             </h6>
             <span
-              class="text-caption"
+              class="text-caption text-tabular-nums"
               :class="`text-${item.color}`"
             >{{ item.change }}</span>
           </VCard>

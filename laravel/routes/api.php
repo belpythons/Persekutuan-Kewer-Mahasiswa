@@ -22,6 +22,7 @@ Route::prefix('v1')->group(function () {
     Route::post('/forecast', [ForecastController::class, 'forecast']);
     Route::post('/forecast-7days', [ForecastController::class, 'forecast7Days']);
     Route::get('/forecast-history', [ForecastController::class, 'forecastHistory']);
+    Route::get('/model-metrics', [ForecastController::class, 'modelMetrics']);
 
     // Anomaly Detection (PyTorch Autoencoder)
     Route::post('/anomaly-detect', [AnomalyController::class, 'detect']);

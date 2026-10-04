@@ -86,6 +86,14 @@ class FuelRatioAiClient
     }
 
     /**
+     * Metrik Evaluasi Model Riil (R², MAE) dari Training Pipeline Terakhir
+     */
+    public function getModelMetrics(): array
+    {
+        return $this->request('get', '/api/v1/model-metrics');
+    }
+
+    /**
      * Deteksi Lonjakan BBM Unit (PyTorch Autoencoder)
      */
     public function detectAnomalies(array $records): array
