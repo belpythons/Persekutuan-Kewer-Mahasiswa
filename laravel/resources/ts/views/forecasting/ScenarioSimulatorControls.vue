@@ -287,7 +287,7 @@ onMounted(() => {
             </div>
             <div class="d-flex align-baseline gap-2">
               <span
-                class="text-h5 font-weight-bold"
+                class="text-h5 font-weight-bold text-tabular-nums"
                 :class="`text-${status.color}`"
               >
                 {{ predictedFr.toFixed(4) }}
@@ -304,7 +304,7 @@ onMounted(() => {
               Predicted Fuel Requirement
             </div>
             <div class="d-flex align-baseline gap-2">
-              <span class="text-h5 font-weight-bold text-high-emphasis">
+              <span class="text-h5 font-weight-bold text-high-emphasis text-tabular-nums">
                 {{ predictedFuelL.toLocaleString('id-ID') }}
               </span>
               <span class="text-caption text-medium-emphasis font-weight-medium">L/hari</span>

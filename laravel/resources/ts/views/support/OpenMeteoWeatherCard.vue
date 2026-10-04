@@ -233,7 +233,7 @@ onUnmounted(() => {
                 <span class="text-caption text-medium-emphasis font-weight-medium">Curah Hujan</span>
                 <VIcon icon="bx-water" size="18" class="text-secondary" />
               </div>
-              <div class="text-h5 font-weight-bold text-high-emphasis">
+              <div class="text-h5 font-weight-bold text-high-emphasis text-tabular-nums">
                 {{ weather.rainfall_mm.toFixed(2) }} <span class="text-caption text-medium-emphasis">mm/h</span>
               </div>
               <div class="text-caption text-secondary font-weight-medium">
@@ -249,7 +249,7 @@ onUnmounted(() => {
                 <span class="text-caption text-medium-emphasis font-weight-medium">Suhu Pit</span>
                 <VIcon icon="bx-thermometer" size="18" class="text-warning" />
               </div>
-              <div class="text-h5 font-weight-bold text-high-emphasis">
+              <div class="text-h5 font-weight-bold text-high-emphasis text-tabular-nums">
                 {{ weather.temperature_c }}°C
               </div>
               <div class="text-caption text-medium-emphasis">
@@ -265,7 +265,7 @@ onUnmounted(() => {
                 <span class="text-caption text-medium-emphasis font-weight-medium">Angin & Lembap</span>
                 <VIcon icon="bx-wind" size="18" class="text-primary" />
               </div>
-              <div class="text-h5 font-weight-bold text-high-emphasis">
+              <div class="text-h5 font-weight-bold text-high-emphasis text-tabular-nums">
                 {{ weather.wind_speed_kmh }} <span class="text-caption text-medium-emphasis">km/h</span>
               </div>
               <div class="text-caption text-medium-emphasis">
@@ -281,7 +281,7 @@ onUnmounted(() => {
                 <span class="text-caption text-medium-emphasis font-weight-medium">Impact Haul Distance</span>
                 <VIcon icon="bx-car" size="18" class="text-primary" />
               </div>
-              <div class="text-h5 font-weight-bold text-primary">
+              <div class="text-h5 font-weight-bold text-primary text-tabular-nums">
                 {{ haulDistanceM.toLocaleString('id-ID') }} <span class="text-caption text-medium-emphasis">m</span>
               </div>
               <div class="text-caption font-weight-medium" :class="`text-${rainStatus.color}`">

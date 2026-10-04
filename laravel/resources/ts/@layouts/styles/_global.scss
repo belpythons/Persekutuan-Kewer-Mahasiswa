@@ -8,3 +8,31 @@
 html {
   box-sizing: border-box;
 }
+
+/* ==== Radius Scale (R-11) ====
+   Design system: small set of radii applied deliberately.
+   - radius-sm: 4px — small borders, inputs
+   - radius-md: 8px — cards, stat items
+   - radius-lg: 12px — large cards, modals
+   - radius-full: 9999px — pills, avatars
+   Usage: var(--radius-sm), var(--radius-md), var(--radius-lg), var(--radius-full)
+   One generous radius on primary CTA reads as intentional;
+   same radius on every element reads as default.
+*/
+
+:root {
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-full: 9999px;
+}
+
+/* ==== Tabular Numerals ====
+   Mining/industrial figures (L/BCM, mm/h, BCM/jam, Liter) need to line up in
+   columns and not jitter as digits change. Apply only to numeric/unit display,
+   never body copy — most text never benefits from it and it looks odd on prose.
+*/
+.text-tabular-nums {
+  font-feature-settings: "tnum" 1, "lnum" 1;
+  font-variant-numeric: tabular-nums lining-nums;
+}

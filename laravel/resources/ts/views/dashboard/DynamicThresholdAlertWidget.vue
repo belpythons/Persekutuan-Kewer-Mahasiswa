@@ -107,7 +107,7 @@ const isCriticalState = computed(() => status.value === 'CRITICAL')
           <div>
             <span class="text-caption text-medium-emphasis">Forecast FR (H+1)</span>
             <h3
-              class="text-h5 font-weight-bold"
+              class="text-h5 font-weight-bold text-tabular-nums"
               :class="`text-${statusConfig.color}`"
             >
               {{ props.actualFr.toFixed(4) }}
