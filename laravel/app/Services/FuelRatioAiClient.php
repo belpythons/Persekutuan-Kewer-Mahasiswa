@@ -133,6 +133,52 @@ class FuelRatioAiClient
     }
 
     /**
+     * Equipment Working Hours (EWH) & Alokasi Solar Fleet Support & Dewatering
+     */
+    public function getEwhBudget(float $forecastProdBcm = 40000.0): array
+    {
+        return $this->request('get', '/api/v1/ewh-budget?forecast_prod_bcm=' . $forecastProdBcm);
+    }
+
+    /**
+     * Konfigurasi Threshold Fuel Ratio Dinamis (Budget Baseline, Warning %, Critical %)
+     */
+    public function getThresholdConfig(): array
+    {
+        return $this->request('get', '/api/v1/threshold-config');
+    }
+
+    public function updateThresholdConfig(array $payload): array
+    {
+        return $this->request('put', '/api/v1/threshold-config', $payload);
+    }
+
+    /**
+     * Retrain XGBoost & PyTorch Autoencoder — operasi lebih lama dari request biasa,
+     * jadi pakai timeout terpisah yang lebih longgar alih-alih timeout default (5s).
+     */
+    public function retrainModels(): array
+    {
+        $url = rtrim($this->baseUrl, '/') . '/api/v1/model/retrain';
+
+        try {
+            $response = Http::timeout(60)
+                ->withHeaders(['Accept' => 'application/json'])
+                ->post($url);
+
+            if ($response->successful()) {
+                return $response->json();
+            }
+
+            Log::error("AI Service Retrain Error [{$response->status()}]: " . $response->body());
+            throw new Exception("AI Service Retrain HTTP Error: " . $response->status());
+        } catch (Exception $e) {
+            Log::emergency("Gagal retrain model di {$url}: " . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    /**
      * Mining Fuel AI Chatbot Assistant Query
      */
     public function queryChatbot(string $query, array $history = []): array

@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\AnomalyController;
 use App\Http\Controllers\Api\CapacityController;
 use App\Http\Controllers\Api\ChatbotController;
 use App\Http\Controllers\Api\HealthController;
+use App\Http\Controllers\Api\MlopsController;
 
 /*
 |--------------------------------------------------------------------------
@@ -33,6 +34,14 @@ Route::prefix('v1')->group(function () {
 
     // Realtime BMKG Weather Sync
     Route::post('/weather/sync-bmkg', [CapacityController::class, 'syncBmkg']);
+
+    // Equipment Working Hours & Fuel Budget (Support/Dewatering)
+    Route::get('/ewh-budget', [CapacityController::class, 'ewhBudget']);
+
+    // Dynamic Threshold Config & Model Retraining (MLOps)
+    Route::get('/threshold-config', [MlopsController::class, 'getThresholdConfig']);
+    Route::put('/threshold-config', [MlopsController::class, 'updateThresholdConfig']);
+    Route::post('/model/retrain', [MlopsController::class, 'retrain']);
 
     // Mining Fuel AI Chatbot Assistant
     Route::post('/chatbot/query', [ChatbotController::class, 'query']);

@@ -101,5 +101,27 @@ class CapacityController extends Controller
             ], 503);
         }
     }
+
+    /**
+     * GET /api/v1/ewh-budget
+     * Proxy ke AI service Equipment Working Hours & alokasi solar Support/Dewatering
+     */
+    public function ewhBudget(Request $request): JsonResponse
+    {
+        $forecastProdBcm = (float) $request->input('forecast_prod_bcm', 40000.0);
+
+        try {
+            $result = $this->aiClient->getEwhBudget($forecastProdBcm);
+
+            return response()->json($result);
+        } catch (Exception $e) {
+            return response()->json([
+                'error' => 'AI Service EWH budget tidak tersedia',
+                'message' => $e->getMessage(),
+                'fallback' => true,
+                'sectors' => [],
+            ], 503);
+        }
+    }
 }
 
