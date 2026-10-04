@@ -77,11 +77,10 @@ const anomalyRatio = computed(() => {
               <VIcon
                 icon="bx-car"
                 size="16"
-                class="me-1"
-                style="color: #1E88E5;"
+                class="me-1 text-secondary"
               />
               <span class="text-medium-emphasis">Fleet Scanned:</span>
-              <strong class="ms-1" style="color: #1E88E5;">{{ props.totalFleetUnits }}</strong>
+              <strong class="ms-1 text-secondary">{{ props.totalFleetUnits }}</strong>
             </div>
             <div>
               <VIcon

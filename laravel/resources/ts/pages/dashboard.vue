@@ -10,6 +10,7 @@ import OpenMeteoWeatherCard from '@/views/support/OpenMeteoWeatherCard.vue'
 const { fetchForecast, fetchAnomalyDetect, fetchCalculateCapacity } = useAiApi()
 
 const isLoading = ref(true)
+const isError = ref(false)
 
 // Forecast data for alert widget
 const forecastData = ref<ForecastResponse | null>(null)
@@ -20,7 +21,9 @@ const anomalyData = ref<AnomalyDetectResponse | null>(null)
 // Capacity data for donut chart
 const capacityData = ref<CapacityResponse | null>(null)
 
-onMounted(async () => {
+async function loadDashboard() {
+  isLoading.value = true
+  isError.value = false
   const today = new Date().toISOString().slice(0, 10)
 
   try {
@@ -31,21 +34,26 @@ onMounted(async () => {
     // 2. Fetch Capacity (Dependent on Forecast Production & Weather)
     const capacityResult = await fetchCalculateCapacity({
       date: today,
-      forecast_prod_bcm: forecastResult.daily_prod_bcm || 40000.0,
-      curah_hujan_mm: forecastResult.features_input?.Curah_Hujan_mm || 0.0,
+      forecast_prod_bcm: forecastResult.daily_prod_bcm,
+      curah_hujan_mm: forecastResult.features_input?.Curah_Hujan_mm ?? 0.0,
     })
     capacityData.value = capacityResult
 
-    // 3. Fetch Anomaly (Empty records triggers Python DB Fallback for today)
+    // 3. Fetch Anomaly (Empty records triggers Python DB lookup for today)
     const anomalyResult = await fetchAnomalyDetect([])
     anomalyData.value = anomalyResult
-
   } catch (error) {
-    console.error("Failed to load AI Dashboard data:", error)
+    console.error('Failed to load AI Dashboard data:', error)
+    isError.value = true
+    forecastData.value = null
+    anomalyData.value = null
+    capacityData.value = null
   } finally {
     isLoading.value = false
   }
-})
+}
+
+onMounted(loadDashboard)
 </script>
 
 <template>
@@ -80,14 +88,22 @@ onMounted(async () => {
 
       <!-- TOP METRIC 1: FORECAST ALERT -->
       <VCol cols="12" sm="6" lg="4">
+        <!--
+          ponytail: budget-baseline (1.0180) is still a hardcoded constant — the forecast API
+          doesn't return it (it mirrors python-ai-service's BASE_TOTAL_FR_BUDGET constant).
+          Upgrade when the threshold-config endpoint (plan Phase D3) ships; read it from there.
+          Harmless while isLoading/isError is true: the widget never renders these props then.
+        -->
         <DynamicThresholdAlertWidget
-          :actual-fr="forecastData?.forecast_fr ?? 1.0180"
+          :actual-fr="forecastData?.forecast_fr ?? 0"
           :budget-baseline="1.0180"
-          :warning-threshold="forecastData?.warning_threshold ?? 1.0994"
-          :critical-threshold="forecastData?.critical_threshold ?? 1.2012"
+          :warning-threshold="forecastData?.warning_threshold ?? 0"
+          :critical-threshold="forecastData?.critical_threshold ?? 0"
           :excess-fuel-liters="0"
           :is-loading="isLoading"
+          :is-error="isError"
           class="h-100"
+          @retry="loadDashboard"
         />
       </VCol>
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
 interface Props {
   actualFr: number
@@ -8,6 +8,7 @@ interface Props {
   criticalThreshold: number
   excessFuelLiters: number
   isLoading: boolean
+  isError: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -17,7 +18,10 @@ const props = withDefaults(defineProps<Props>(), {
   criticalThreshold: 1.3660,
   excessFuelLiters: 0,
   isLoading: false,
+  isError: false,
 })
+
+const emit = defineEmits<{ retry: [] }>()
 
 const status = computed(() => {
   if (props.actualFr >= props.criticalThreshold) return 'CRITICAL'
@@ -48,11 +52,7 @@ const progressPct = computed(() => {
   return Math.round(((clamped - min) / (max - min)) * 100)
 })
 
-const progressColor = computed(() => {
-  if (props.actualFr >= props.criticalThreshold) return '#E53935'
-  if (props.actualFr >= props.warningThreshold) return '#FFB400'
-  return '#56CA00'
-})
+const progressColor = computed(() => statusConfig.value.color)
 
 const isCriticalState = computed(() => status.value === 'CRITICAL')
 </script>
@@ -86,13 +86,29 @@ const isCriticalState = computed(() => status.value === 'CRITICAL')
       <div v-if="isLoading" class="d-flex justify-center my-4">
         <VProgressCircular indeterminate color="primary" />
       </div>
+      <div v-else-if="isError" class="text-center my-4">
+        <VIcon
+          icon="bx-error-circle"
+          size="48"
+          class="text-error mb-3"
+        />
+        <h4 class="text-body-1 mb-3">Gagal Memuat Data</h4>
+        <p class="text-caption text-medium-emphasis mb-3">Tidak dapat mengambil data ratio bahan bakar.</p>
+        <VBtn
+          variant="tonal"
+          size="small"
+          @click="emit('retry')"
+        >
+          Coba Lagi
+        </VBtn>
+      </div>
       <template v-else>
         <div class="d-flex align-center gap-4 mb-3">
           <div>
             <span class="text-caption text-medium-emphasis">Forecast FR (H+1)</span>
             <h3
               class="text-h5 font-weight-bold"
-              style="color: #E53935;"
+              :class="`text-${statusConfig.color}`"
             >
               {{ props.actualFr.toFixed(4) }}
             </h3>
@@ -153,7 +169,7 @@ const isCriticalState = computed(() => status.value === 'CRITICAL')
 }
 
 .alert-card.critical-tint {
-  background-color: rgba(229, 57, 53, 0.06);
-  border-left: 4px solid #E53935;
+  background-color: rgba(var(--v-theme-error), 0.06);
+  border-left: 4px solid rgb(var(--v-theme-error));
 }
 </style>

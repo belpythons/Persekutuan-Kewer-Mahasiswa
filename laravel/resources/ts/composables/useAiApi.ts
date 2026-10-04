@@ -11,21 +11,22 @@
 
 export interface ForecastPayload {
   date: string
-  curah_hujan_mm: number
-  temp_max_c: number
-  kecepatan_angin_kmh: number
-  haul_distance_m: number
-  daily_prod_bcm: number
+  curah_hujan_mm?: number
+  temp_max_c?: number
+  kecepatan_angin_kmh?: number
+  haul_distance_m?: number
+  daily_prod_bcm?: number
 }
 
 export interface ForecastResponse {
   log_date: string
   forecast_fr: number
   status: 'NORMAL' | 'WARNING' | 'CRITICAL'
-  budget_baseline: number
   warning_threshold: number
   critical_threshold: number
-  features_used?: Record<string, number>
+  daily_prod_bcm: number
+  haul_distance_m: number
+  features_input?: Record<string, number>
   fallback?: boolean
   error?: string
 }
@@ -254,6 +255,20 @@ export interface HealthResponse {
 // API Helper
 // ============================================================
 
+/**
+ * Thrown by apiRequest() whenever Laravel answers with a non-2xx status (including its
+ * `fallback: true` / 503 responses). `body` still carries whatever Laravel sent — including
+ * the fallback payload — for callers that want to tell "AI service down" apart from a hard
+ * network failure, but nothing reaches a caller labeled as live data unless the request
+ * actually succeeded.
+ */
+export class AiApiError extends Error {
+  constructor(message: string, public status: number, public body: any) {
+    super(message)
+    this.name = 'AiApiError'
+  }
+}
+
 async function apiRequest<T>(method: string, url: string, body?: unknown): Promise<T> {
   const options: RequestInit = {
     method,
@@ -267,8 +282,18 @@ async function apiRequest<T>(method: string, url: string, body?: unknown): Promi
     options.body = JSON.stringify(body)
   }
 
-  const response = await fetch(url, options)
-  const data = await response.json()
+  let response: Response
+  try {
+    response = await fetch(url, options)
+  } catch (networkError) {
+    throw new AiApiError('Tidak dapat menghubungi server', 0, null)
+  }
+
+  const data = await response.json().catch(() => null)
+
+  if (!response.ok) {
+    throw new AiApiError(data?.error || `HTTP ${response.status}`, response.status, data)
+  }
 
   return data as T
 }
